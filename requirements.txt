@@ -9,4 +9,4 @@ torch
 wget
 xgboost
 
--e ../verta
+verta
