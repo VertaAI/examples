@@ -1,0 +1,6 @@
+pandas
+scikit-learn
+wget
+verta
+xgboost
+numpy
