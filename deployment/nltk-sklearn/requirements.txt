@@ -1,0 +1,9 @@
+jupyter
+nltk<3.5; python_version == '2.7'  # https://github.com/nltk/nltk/issues/2534
+nltk; python_version > '2.7'
+numpy
+pandas
+sklearn
+wget
+
+verta

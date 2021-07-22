@@ -1,0 +1,6 @@
+jupyter
+numpy
+spacy~=2.0
+thinc
+
+verta
