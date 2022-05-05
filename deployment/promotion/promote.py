@@ -18,8 +18,7 @@ Configuration is done via environment variables. All are mandatory:
 Optional environment variables to configure curl usage:
 VERTA_CURL_OPTS: Options to pass to curl. Defaults to '-O'
 
-With these values set, simply run the script. A successful run will generate no output. The script will
-not attempt to delete any data and will fail if the endpoint already exists in the destination.
+With these values set, run the script. The script will not attempt to delete any data and will fail if the endpoint already exists in the destination.
 """
 
 import json
