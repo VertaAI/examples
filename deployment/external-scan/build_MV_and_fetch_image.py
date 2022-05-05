@@ -1,10 +1,9 @@
 import dataclasses
 import os
-from venv import create
 import requests
 import sys
 import time
-from typing import List, Any
+from typing import List
 
 from verta import Client
 
@@ -73,7 +72,8 @@ def main(arguments: Arguments):
     # Create build
     build_id = create_build(arguments.model_version_id, workspace_name)
     # If `external`, mark build as such
-    make_build_external(build_id, workspace_name)
+    if arguments.external:
+        make_build_external(build_id, workspace_name)
 
     print("waiting for build...", end="")
     sys.stdout.flush()
