@@ -1,4 +1,5 @@
 import dataclasses
+import datetime
 import os
 import requests
 import sys
@@ -8,14 +9,14 @@ from typing import List
 from verta import Client
 
 
-USAGE = f"Usage: python {sys.argv[0]} [--help] | model_version_id [external]\n \
-    \n\tmodel_version_id: the model version ID to build \
-    \n\texternal: include if this build will be scanned externally"
+USAGE = f"Usage: python {sys.argv[0]} [--help] | model_version_id [docker-context-output-directory]\n\
+    \n\tmodel_version_id: the model version ID to build\
+    \n\tdocker-context-output-directory: directory to save docker context into; defaults to current directory"
 
 @dataclasses.dataclass
 class Arguments:
     model_version_id: int
-    external: bool = False
+    docker_context_output_directory: str
 
 
 def validate(args: List[str]):
@@ -23,8 +24,9 @@ def validate(args: List[str]):
     if not args[0].isdigit():
         raise SystemExit("Type Error: model_version_id must be an int")
     args[0] = int(args[0])
-    if len(args) > 1:
-        args[1] = True
+    # Default location is current directory
+    if len(args) == 1:
+        args.append(".")
     try:
         arguments = Arguments(*args)
     except TypeError:
@@ -62,7 +64,7 @@ def create_build(model_version_id: int, workspace_name: str):
         raise SystemError(f"creating build failed with code: {r.status_code} and message: {r.content}")
 
     build_id = r.json()["id"]
-    print(f"success. build ID is {build_id}")
+    print(f"success; build ID is {build_id}")
     return build_id
 
 
@@ -71,9 +73,15 @@ def main(arguments: Arguments):
     workspace_name = client.get_workspace()
     # Create build
     build_id = create_build(arguments.model_version_id, workspace_name)
-    # If `external`, mark build as such
-    if arguments.external:
-        make_build_external(build_id, workspace_name)
+    # Mark build as externally scanned
+    make_build_external(build_id, workspace_name)
+
+    # Fetch docker context
+    print("downloading docker context")
+    model_version = client.get_registered_model_version(arguments.model_version_id)
+    dt_string = datetime.datetime.now().strftime("%m-%d-%Y-%H-%M-%S")
+    docker_context_filename = "mv" + str(arguments.model_version_id) + "-" + "build" + str(build_id) + "-"  + dt_string + ".tgz"
+    model_version.download_docker_context(arguments.docker_context_output_directory + "/" + docker_context_filename, self_contained=True)
 
     print("waiting for build...", end="")
     sys.stdout.flush()
@@ -92,6 +100,7 @@ def main(arguments: Arguments):
     build_location = build_json["location"]
     print()
     print()
+    print("build complete; image location:")
     print(build_location)
 
 
