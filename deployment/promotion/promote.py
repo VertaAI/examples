@@ -182,7 +182,12 @@ def upload_artifact(auth, model_version_id, artifact):
     key = artifact['key']
     print("Uploading artifact '%s'" % key)
 
-    put_url = signed_artifact_url(auth, model_version_id, artifact)
+    artifact_request = {
+        'method': 'PUT',
+        'model_version_id': model_version_id,
+        'key': key
+    }
+    put_url = signed_artifact_url(auth, model_version_id, artifact_request)
     data = open(key, 'rb')
     put_response = requests.put(put_url, data=data, headers={'Content-type': 'application/octet-stream'})
 
@@ -191,7 +196,7 @@ def upload_artifact(auth, model_version_id, artifact):
                         put_response.reason, key, put_url, put_response.text))
 
     check_url = signed_artifact_url(auth, model_version_id, {'method': 'GET', 'model_version_id': model_version_id,
-                                                             'key': key})
+                                                          'key': key})
     check = requests.get(check_url)
     if not check.ok:
         raise Exception("Failed to verify artifact '%s' upload at URL %s" % (key, check_url))
@@ -207,13 +212,7 @@ def upload_artifacts(auth, model_version_id, promoted_model):
     promoted_model['uploaded_artifacts'] = {}
 
     for artifact in promoted_model['artifact_keys']:
-        artifact_request = {
-            'method': 'PUT',
-            'model_version_id': model_version_id
-        }
-
-        copy_fields(['artifact_type', 'key'], artifact, artifact_request)
-        promoted_model['uploaded_artifacts'][artifact["key"]] = upload_artifact(auth, model_version_id, artifact_request)
+        promoted_model['uploaded_artifacts'][artifact["key"]] = upload_artifact(auth, model_version_id, artifact)
 
 
 def fetch_promotion_data(_config):
