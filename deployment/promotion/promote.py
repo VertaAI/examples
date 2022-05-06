@@ -132,7 +132,7 @@ def pp(js):
     print(json.dumps(js, indent=4))
 
 
-def get_artifact_url(auth, model_version_id, artifact):
+def signed_artifact_url(auth, model_version_id, artifact):
     print("Getting URL for artifact: '%s'" % artifact['key'])
     path = '/api/v1/registry/model_versions/{}/getUrlForArtifact'.format(model_version_id)
     return post(auth, path, artifact)['url']
@@ -155,7 +155,7 @@ def commit_artifact_part(auth, model_version_id, artifact_key, etag):
 
 def download_artifact(auth, model_version_id, artifact):
     key = artifact['key']
-    url = get_artifact_url(auth, model_version_id, artifact)
+    url = signed_artifact_url(auth, model_version_id, artifact)
     print("Downloading artifact '%s'" % key)
     curl_cmd = "curl %s -o %s '%s'" % (params['VERTA_CURL_OPTS'], key, url)
     os.system(curl_cmd)
@@ -182,7 +182,7 @@ def upload_artifact(auth, model_version_id, artifact):
     key = artifact['key']
     print("Uploading artifact '%s'" % key)
 
-    put_url = get_artifact_url(auth, model_version_id, artifact)
+    put_url = signed_artifact_url(auth, model_version_id, artifact)
     data = open(key, 'rb')
     put_response = requests.put(put_url, data=data, headers={'Content-type': 'application/octet-stream'})
 
@@ -190,8 +190,8 @@ def upload_artifact(auth, model_version_id, artifact):
         raise Exception("Failed to put artifact (%d %s). Key: %s\tURL: %s\tText: %s" % (put_response.status_code,
                         put_response.reason, key, put_url, put_response.text))
 
-    check_url = get_artifact_url(auth, model_version_id, {'method': 'GET', 'model_version_id': model_version_id,
-                                                          'key': key})
+    check_url = signed_artifact_url(auth, model_version_id, {'method': 'GET', 'model_version_id': model_version_id,
+                                                             'key': key})
     check = requests.get(check_url)
     if not check.ok:
         raise Exception("Failed to verify artifact '%s' upload at URL %s" % (key, check_url))
