@@ -23,7 +23,6 @@ With these values set, run the script. The script will not attempt to delete any
 
 import json
 import requests
-import urllib.request
 import os
 
 env_vars = ['VERTA_ENDPOINT_PATH', 'VERTA_SOURCE_HOST', 'VERTA_SOURCE_EMAIL', 'VERTA_SOURCE_DEV_KEY',
@@ -133,7 +132,7 @@ def pp(js):
     print(json.dumps(js, indent=4))
 
 
-def get_artifact_url(auth, model_version_id, artifact):
+def signed_artifact_url(auth, model_version_id, artifact):
     print("Getting URL for artifact: '%s'" % artifact['key'])
     path = '/api/v1/registry/model_versions/{}/getUrlForArtifact'.format(model_version_id)
     return post(auth, path, artifact)['url']
@@ -156,7 +155,7 @@ def commit_artifact_part(auth, model_version_id, artifact_key, etag):
 
 def download_artifact(auth, model_version_id, artifact):
     key = artifact['key']
-    url = get_artifact_url(auth, model_version_id, artifact)
+    url = signed_artifact_url(auth, model_version_id, artifact)
     print("Downloading artifact '%s'" % key)
     curl_cmd = "curl %s -o %s '%s'" % (params['VERTA_CURL_OPTS'], key, url)
     os.system(curl_cmd)
@@ -183,12 +182,29 @@ def upload_artifact(auth, model_version_id, artifact):
     key = artifact['key']
     print("Uploading artifact '%s'" % key)
 
-    upload_url = get_artifact_url(auth, model_version_id, artifact)
+    artifact_request = {
+        'method': 'PUT',
+        'model_version_id': model_version_id,
+        'key': key
+    }
+    put_url = signed_artifact_url(auth, model_version_id, artifact_request)
     data = open(key, 'rb')
-    put_response = requests.put(upload_url, data=data, headers={'Content-type': 'application/octet-stream'})
+    put_response = requests.put(put_url, data=data, headers={'Content-type': 'application/octet-stream'})
+
+    if not put_response.ok:
+        raise Exception("Failed to put artifact (%d %s). Key: %s\tURL: %s\tText: %s" % (put_response.status_code,
+                        put_response.reason, key, put_url, put_response.text))
+
+    check_url = signed_artifact_url(auth, model_version_id, {'method': 'GET', 'model_version_id': model_version_id,
+                                                          'key': key})
+    check = requests.get(check_url)
+    if not check.ok:
+        raise Exception("Failed to verify artifact '%s' upload at URL %s" % (key, check_url))
+
     etag = put_response.headers["ETag"]
+
     commit_artifact_part(auth, model_version_id, key, etag)
-    return upload_url
+    return put_url
 
 
 def upload_artifacts(auth, model_version_id, promoted_model):
@@ -196,13 +212,7 @@ def upload_artifacts(auth, model_version_id, promoted_model):
     promoted_model['uploaded_artifacts'] = {}
 
     for artifact in promoted_model['artifact_keys']:
-        artifact_request = {
-            'method': 'PUT',
-            'model_version_id': model_version_id
-        }
-
-        copy_fields(['artifact_type', 'key'], artifact, artifact_request)
-        promoted_model['uploaded_artifacts'][artifact["key"]] = upload_artifact(auth, model_version_id, artifact_request)
+        promoted_model['uploaded_artifacts'][artifact["key"]] = upload_artifact(auth, model_version_id, artifact)
 
 
 def fetch_promotion_data(_config):
@@ -335,14 +345,14 @@ def create_promoted_endpoint(_config, promotion_data):
 
     for promoted_stage in promotion_data['stages']:
         print("Promoting endpoint stage '%s'" % promoted_stage['name'])
+        stage = create_endpoint_stage(dest_auth, endpoint, promoted_stage)
         for promoted_build in promoted_stage['builds']:
             print("Promoting source build id %d" % promoted_build['id'])
             promoted_model = promoted_build['model']
             registered_model = create_registered_model(dest_auth, promoted_model)
             registered_model_version = create_registered_model_version(dest_auth, registered_model, promoted_model)
             upload_artifacts(dest_auth, registered_model_version['id'], promoted_model)
-            update_registered_model_version(dest_auth, registered_model['id'], registered_model_version['id'],  promoted_model)
-            stage = create_endpoint_stage(dest_auth, endpoint, promoted_stage)
+            update_registered_model_version(dest_auth, registered_model['id'], registered_model_version['id'], promoted_model)
             build = create_build(dest_auth, registered_model_version['id'])
             update_stage(dest_auth, endpoint, stage, build)
 
