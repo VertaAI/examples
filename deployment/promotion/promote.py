@@ -314,10 +314,14 @@ def create_endpoint_stage(auth, endpoint, stage):
     return post(auth, path, endpoint_stage)
 
 
-def create_build(auth, model_version_id):
+def create_build(auth, model_version_id, external_location):
     print("Creating build of model version '%s'" % model_version_id)
     path = '/api/v1/deployment/workspace/{}/builds'.format(auth['workspace'])
-    build = {'model_version_id': int(model_version_id)}
+    build = {
+        'external_location': external_location,
+        'model_version_id': int(model_version_id),
+        'self_contained': True,
+    }
     return post(auth, path, build)
 
 
@@ -350,10 +354,10 @@ def create_promoted_endpoint(_config, promotion_data):
             print("Promoting source build id %d" % promoted_build['id'])
             promoted_model = promoted_build['model']
             registered_model = create_registered_model(dest_auth, promoted_model)
-            registered_model_version = create_registered_model_version(dest_auth, registered_model, promoted_model)
-            upload_artifacts(dest_auth, registered_model_version['id'], promoted_model)
-            update_registered_model_version(dest_auth, registered_model['id'], registered_model_version['id'], promoted_model)
-            build = create_build(dest_auth, registered_model_version['id'])
+            rmv = create_registered_model_version(dest_auth, registered_model, promoted_model)
+            upload_artifacts(dest_auth, rmv['id'], promoted_model)
+            update_registered_model_version(dest_auth, registered_model['id'], rmv['id'], promoted_model)
+            build = create_build(dest_auth, rmv['id'], promoted_build['location'])
             update_stage(dest_auth, endpoint, stage, build)
 
 
