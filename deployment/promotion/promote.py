@@ -304,9 +304,7 @@ def create_endpoint(auth, promoted_endpoint, dest_endpoint_path):
     path = '/api/v1/deployment/workspace/{}/endpoints'.format(auth['workspace'])
     endpoint = {}
     copy_fields(['custom_permission', 'resource_visibility', 'visibility'], promoted_endpoint, endpoint)
-    print(endpoint)
     endpoint['path'] = dest_endpoint_path
-    print(endpoint)
     return post(auth, path, endpoint)
 
 
