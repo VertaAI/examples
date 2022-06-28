@@ -79,33 +79,49 @@ def auth_context(host, email, devkey, workspace):
 def post(auth, path, body):
     auth['headers']['Content-Type'] = 'application/json'
     body['workspaceName'] = auth['workspace']
-    res = requests.post("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
-    if res.ok:
-        return res.json()
-    raise Exception(res.text)
+    try:
+        res = requests.post("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
+        res.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        if len(e.response.text) > 0:
+            print(f"Error: {e.response.text}")
+        raise Exception(e)
+    return res.json()
 
 
 def get(auth, path):
-    res = requests.get("https://{}{}".format(auth["host"], path), headers=auth['headers'])
-    if res.ok:
-        return res.json()
-    raise Exception(res.text)
+    try:
+        res = requests.get("https://{}{}".format(auth["host"], path), headers=auth['headers'])
+        res.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        if len(e.response.text) > 0:
+            print(f"Error: {e.response.text}")
+        raise Exception(e)
+    return res.json()
 
 
 def put(auth, path, body):
-    res = requests.put("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
-    if res.ok:
-        if len(res.text) > 0:
-            return res.json()
-        return {}
-    raise Exception(res.text)
+    try:
+        res = requests.put("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
+        res.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        if len(e.response.text) > 0:
+            print(f"Error: {e.response.text}")
+        raise Exception(e)
+    if len(res.text) > 0:
+        return res.json()
+    return {}
 
 
 def patch(auth, path, body):
-    res = requests.patch("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
-    if res.ok:
-        return res.json()
-    raise Exception(res.text)
+    try:
+        res = requests.patch("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
+        res.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        if len(e.response.text) > 0:
+            print(f"Error: {e.response.text}")
+        raise Exception(e)
+    return res.json()
 
 
 def get_endpoint(auth, endpoint):
@@ -242,7 +258,6 @@ def fetch_promotion_data(_config):
             build_id = component['build_id']
             promoted_build = {'id': build_id}
             promoted_stage['builds'].append(promoted_build)
-
             build = get_build(source_auth, build_id)
             location = build['location']
             promoted_build['location'] = location
@@ -250,7 +265,6 @@ def fetch_promotion_data(_config):
             model_version_id = build['creator_request']['model_version_id']
             promoted_model = {'model_version_id': model_version_id}
             promoted_build['model'] = promoted_model
-
             model_version = get_model_version(source_auth, model_version_id)
 
             fields = ['environment', 'artifacts', 'attributes', 'registered_model_id', 'model', 'version',
@@ -300,7 +314,7 @@ def update_registered_model_version(auth, registered_model_id, model_version_id,
 
 
 def create_endpoint(auth, promoted_endpoint, dest_endpoint_path):
-    print("Creating endpoint '%s'" % promoted_endpoint['path'])
+    print("Creating endpoint '%s'" % dest_endpoint_path)
     path = '/api/v1/deployment/workspace/{}/endpoints'.format(auth['workspace'])
     endpoint = {}
     copy_fields(['custom_permission', 'resource_visibility', 'visibility'], promoted_endpoint, endpoint)
@@ -343,18 +357,21 @@ def update_stage(auth, endpoint, stage, build):
 
 
 def create_promoted_endpoint(_config, promotion_data):
+    source = _config['source']
     dest = _config['dest']
     
-    print("Starting promotion of '%s'" % dest['endpoint_path'])
+    print("Starting promotion of '%s' to '%s'" % (source['endpoint_path'], dest['endpoint_path']))
     dest_auth = auth_context(dest['host'], dest['email'], dest['devkey'], dest['workspace'])
 
     endpoint = create_endpoint(dest_auth, promotion_data['endpoint']['creator_request'], dest['endpoint_path'])
+    
 
     print("Created endpoint %d" % endpoint['id'])
 
     for promoted_stage in promotion_data['stages']:
         print("Promoting endpoint stage '%s'" % promoted_stage['name'])
         stage = create_endpoint_stage(dest_auth, endpoint, promoted_stage)
+        
         for promoted_build in promoted_stage['builds']:
             print("Promoting source build id %d" % promoted_build['id'])
             promoted_model = promoted_build['model']
