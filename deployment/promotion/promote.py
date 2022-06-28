@@ -83,9 +83,9 @@ def post(auth, path, body):
         res = requests.post("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
         res.raise_for_status()
     except requests.exceptions.RequestException as e:
-        if len(e.response.text) > 0:
+        if e.response.text:
             print(f"Error: {e.response.text}")
-        raise Exception(e)
+        raise e
     return res.json()
 
 
@@ -94,9 +94,9 @@ def get(auth, path):
         res = requests.get("https://{}{}".format(auth["host"], path), headers=auth['headers'])
         res.raise_for_status()
     except requests.exceptions.RequestException as e:
-        if len(e.response.text) > 0:
+        if e.response.text:
             print(f"Error: {e.response.text}")
-        raise Exception(e)
+        raise e
     return res.json()
 
 
@@ -105,9 +105,9 @@ def put(auth, path, body):
         res = requests.put("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
         res.raise_for_status()
     except requests.exceptions.RequestException as e:
-        if len(e.response.text) > 0:
+        if e.response.text:
             print(f"Error: {e.response.text}")
-        raise Exception(e)
+        raise e
     if len(res.text) > 0:
         return res.json()
     return {}
@@ -118,9 +118,9 @@ def patch(auth, path, body):
         res = requests.patch("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
         res.raise_for_status()
     except requests.exceptions.RequestException as e:
-        if len(e.response.text) > 0:
+        if e.response.text:
             print(f"Error: {e.response.text}")
-        raise Exception(e)
+        raise e
     return res.json()
 
 
