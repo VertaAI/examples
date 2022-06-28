@@ -5,11 +5,12 @@ to another.
 
 Configuration is done via environment variables. All are mandatory:
 
-- VERTA_ENDPOINT_PATH: The endpoint path, ex. '/test'
+- VERTA_SOURCE_ENDPOINT_PATH: The endpoint path to promote from, ex. '/test'
 - VERTA_SOURCE_HOST: The source Verta instance to promote from
 - VERTA_SOURCE_EMAIL: The email address for authentication to the source Verta instance
 - VERTA_SOURCE_DEV_KEY: The dev key associated to the email address on the source Verta instance
 - VERTA_SOURCE_WORKSPACE: The workspace associated with the endpoint on the source Verta instance
+- VERTA_DEST_ENDPOINT_PATH: The destination endpoint path, ex. '/test'
 - VERTA_DEST_HOST: The destination Verta instance to promote to
 - VERTA_DEST_EMAIL: The email address for authentication to the destination Verta instance
 - VERTA_DEST_DEV_KEY: The dev key associated to the email address on the destination Verta instance
@@ -25,8 +26,8 @@ import json
 import requests
 import os
 
-env_vars = ['VERTA_ENDPOINT_PATH', 'VERTA_SOURCE_HOST', 'VERTA_SOURCE_EMAIL', 'VERTA_SOURCE_DEV_KEY',
-            'VERTA_SOURCE_WORKSPACE', 'VERTA_DEST_HOST', 'VERTA_DEST_EMAIL', 'VERTA_DEST_DEV_KEY',
+env_vars = ['VERTA_SOURCE_ENDPOINT_PATH', 'VERTA_SOURCE_HOST', 'VERTA_SOURCE_EMAIL', 'VERTA_SOURCE_DEV_KEY',
+            'VERTA_SOURCE_WORKSPACE', 'VERTA_DEST_ENDPOINT_PATH', 'VERTA_DEST_HOST', 'VERTA_DEST_EMAIL', 'VERTA_DEST_DEV_KEY',
             'VERTA_DEST_WORKSPACE']
 params = {}
 
@@ -44,14 +45,15 @@ else:
     params['VERTA_CURL_OPTS'] = ''
 
 config = {
-    'endpoint_path': params['VERTA_ENDPOINT_PATH'],
     'source': {
+        'endpoint_path': params['VERTA_SOURCE_ENDPOINT_PATH'],
         'host': params['VERTA_SOURCE_HOST'],
         'email': params['VERTA_SOURCE_EMAIL'],
         'devkey': params['VERTA_SOURCE_DEV_KEY'],
         'workspace': params['VERTA_SOURCE_WORKSPACE']
     },
     'dest': {
+        'endpoint_path': params['VERTA_DEST_ENDPOINT_PATH'],
         'host': params['VERTA_DEST_HOST'],
         'email': params['VERTA_DEST_EMAIL'],
         'devkey': params['VERTA_DEST_DEV_KEY'],
@@ -62,7 +64,9 @@ config = {
 
 def copy_fields(fields, src, dest):
     for field in fields:
-        dest[field] = src[field]
+        # Don't try to copy if nothing's there
+        if field in src.keys():
+            dest[field] = src[field]
 
 
 def auth_context(host, email, devkey, workspace):
@@ -75,33 +79,49 @@ def auth_context(host, email, devkey, workspace):
 def post(auth, path, body):
     auth['headers']['Content-Type'] = 'application/json'
     body['workspaceName'] = auth['workspace']
-    res = requests.post("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
-    if res.ok:
-        return res.json()
-    raise Exception(res.text)
+    try:
+        res = requests.post("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
+        res.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        if e.response.text:
+            print(f"Error: {e.response.text}")
+        raise e
+    return res.json()
 
 
 def get(auth, path):
-    res = requests.get("https://{}{}".format(auth["host"], path), headers=auth['headers'])
-    if res.ok:
-        return res.json()
-    raise Exception(res.text)
+    try:
+        res = requests.get("https://{}{}".format(auth["host"], path), headers=auth['headers'])
+        res.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        if e.response.text:
+            print(f"Error: {e.response.text}")
+        raise e
+    return res.json()
 
 
 def put(auth, path, body):
-    res = requests.put("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
-    if res.ok:
-        if len(res.text) > 0:
-            return res.json()
-        return {}
-    raise Exception(res.text)
+    try:
+        res = requests.put("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
+        res.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        if e.response.text:
+            print(f"Error: {e.response.text}")
+        raise e
+    if len(res.text) > 0:
+        return res.json()
+    return {}
 
 
 def patch(auth, path, body):
-    res = requests.patch("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
-    if res.ok:
-        return res.json()
-    raise Exception(res.text)
+    try:
+        res = requests.patch("https://{}{}".format(auth["host"], path), headers=auth['headers'], json=body)
+        res.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        if e.response.text:
+            print(f"Error: {e.response.text}")
+        raise e
+    return res.json()
 
 
 def get_endpoint(auth, endpoint):
@@ -216,11 +236,11 @@ def upload_artifacts(auth, model_version_id, promoted_model):
 
 
 def fetch_promotion_data(_config):
-    print("Fetching promotion data for '%s'" % _config['endpoint_path'])
-
     source = _config['source']
+    
+    print("Fetching promotion data for '%s'" % source['endpoint_path'])
     source_auth = auth_context(source['host'], source['email'], source['devkey'], source['workspace'])
-    endpoint = get_endpoint(source_auth, _config['endpoint_path'])
+    endpoint = get_endpoint(source_auth, source['endpoint_path'])
     stages = get_endpoint_stages(source_auth, endpoint['id'])
 
     promotion_data = {
@@ -238,7 +258,6 @@ def fetch_promotion_data(_config):
             build_id = component['build_id']
             promoted_build = {'id': build_id}
             promoted_stage['builds'].append(promoted_build)
-
             build = get_build(source_auth, build_id)
             location = build['location']
             promoted_build['location'] = location
@@ -246,7 +265,6 @@ def fetch_promotion_data(_config):
             model_version_id = build['creator_request']['model_version_id']
             promoted_model = {'model_version_id': model_version_id}
             promoted_build['model'] = promoted_model
-
             model_version = get_model_version(source_auth, model_version_id)
 
             fields = ['environment', 'artifacts', 'attributes', 'registered_model_id', 'model', 'version',
@@ -276,9 +294,9 @@ def create_registered_model(auth, rmv):
 def create_registered_model_version(auth, registered_model, promoted_model):
     print("Creating model version for model '%s'" % promoted_model['version'])
     path = '/api/v1/registry/registered_models/{}/model_versions'.format(registered_model['id'])
-    model_version = {
-        'labels': registered_model['labels'],
-    }
+    model_version = {}
+    if 'labels' in registered_model.keys():
+        model_version['labels'] = registered_model['labels']
 
     # model and artifacts omitted for patching after upload
     fields = ['artifacts', 'attributes', 'environment', 'version', 'readme_text']
@@ -295,11 +313,12 @@ def update_registered_model_version(auth, registered_model_id, model_version_id,
     return patch(auth, path, update)['model_version']
 
 
-def create_endpoint(auth, promoted_endpoint):
-    print("Creating endpoint '%s'" % promoted_endpoint['path'])
+def create_endpoint(auth, promoted_endpoint, dest_endpoint_path):
+    print("Creating endpoint '%s'" % dest_endpoint_path)
     path = '/api/v1/deployment/workspace/{}/endpoints'.format(auth['workspace'])
     endpoint = {}
-    copy_fields(['custom_permission', 'path', 'resource_visibility', 'visibility'], promoted_endpoint, endpoint)
+    copy_fields(['custom_permission', 'resource_visibility', 'visibility'], promoted_endpoint, endpoint)
+    endpoint['path'] = dest_endpoint_path
     return post(auth, path, endpoint)
 
 
@@ -338,18 +357,21 @@ def update_stage(auth, endpoint, stage, build):
 
 
 def create_promoted_endpoint(_config, promotion_data):
-    print("Starting promotion of '%s'" % _config['endpoint_path'])
-
+    source = _config['source']
     dest = _config['dest']
+    
+    print("Starting promotion of '%s' to '%s'" % (source['endpoint_path'], dest['endpoint_path']))
     dest_auth = auth_context(dest['host'], dest['email'], dest['devkey'], dest['workspace'])
 
-    endpoint = create_endpoint(dest_auth, promotion_data['endpoint']['creator_request'])
+    endpoint = create_endpoint(dest_auth, promotion_data['endpoint']['creator_request'], dest['endpoint_path'])
+    
 
     print("Created endpoint %d" % endpoint['id'])
 
     for promoted_stage in promotion_data['stages']:
         print("Promoting endpoint stage '%s'" % promoted_stage['name'])
         stage = create_endpoint_stage(dest_auth, endpoint, promoted_stage)
+        
         for promoted_build in promoted_stage['builds']:
             print("Promoting source build id %d" % promoted_build['id'])
             promoted_model = promoted_build['model']
