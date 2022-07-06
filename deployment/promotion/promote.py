@@ -57,7 +57,7 @@ config = {
         'host': params['VERTA_DEST_HOST'],
         'email': params['VERTA_DEST_EMAIL'],
         'devkey': params['VERTA_DEST_DEV_KEY'],
-        'workspace': params['VERTA_SOURCE_WORKSPACE']
+        'workspace': params['VERTA_DEST_WORKSPACE']
     }
 }
 
