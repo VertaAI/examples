@@ -243,8 +243,12 @@ def get_promotion_data(_config):
     
     print("Fetching promotion data for build %d" % source['build_id'])
     source_auth = auth_context(source['host'], source['email'], source['devkey'], source['workspace'])
-
     build = get_build(source_auth, _config['source']['build_id'])
+    if 'self_contained' not in build['creator_request']:
+        print("WARNING: Build %d is not self contained. Endpoint containers will download artifacts at runtime."
+              % build['id']
+              )
+
     model_version_id = build['creator_request']['model_version_id']
     model_version = get_model_version(source_auth, model_version_id)
     registered_model_id = model_version['registered_model_id']
