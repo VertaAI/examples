@@ -19,7 +19,7 @@ def validate(args: List[str]):
 
 def create_build(model_version_id: int, workspace_name: str):
     r = requests.post(f"https://{os.environ['VERTA_HOST']}/api/v1/deployment/workspace/{workspace_name}/builds",
-                      json={"model_version_id": model_version_id, "self_contained_build": True},
+                      json={"model_version_id": model_version_id, "self_contained": True},
                       headers={'accept': 'application/json', 'Content-Type': 'application/json', 'Grpc-Metadata-source': 'PythonClient', 'Grpc-Metadata-email': f"{os.environ['VERTA_EMAIL']}", 'Grpc-Metadata-developer_key': f"{os.environ['VERTA_DEV_KEY']}"})
     # TODO: retry?
     if r.status_code != 200:
