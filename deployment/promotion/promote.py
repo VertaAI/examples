@@ -9,17 +9,16 @@ Configuration is done via environment variables. All are mandatory:
 - VERTA_SOURCE_HOST: The source Verta instance to promote from
 - VERTA_SOURCE_EMAIL: The email address for authentication to the source Verta instance
 - VERTA_SOURCE_DEV_KEY: The dev key associated to the email address on the source Verta instance
-- VERTA_SOURCE_WORKSPACE: The workspace associated with the endpoint on the source Verta instance
-- VERTA_DEST_ENDPOINT_PATH: (Optional) The destination endpoint path, ex. '/test'
+- VERTA_SOURCE_WORKSPACE: The workspace associated with the build on the source Verta instance
 - VERTA_DEST_HOST: The destination Verta instance to promote to
 - VERTA_DEST_EMAIL: The email address for authentication to the destination Verta instance
 - VERTA_DEST_DEV_KEY: The dev key associated to the email address on the destination Verta instance
-- VERTA_DEST_WORKSPACE: The workspace associated with the endpoint on the destination Verta instance
+- VERTA_DEST_WORKSPACE: The workspace associated with the build on the destination Verta instance
 
 Optional environment variables to configure curl usage:
 VERTA_CURL_OPTS: Options to pass to curl. Defaults to '-O'
 
-With these values set, run the script. The script will not attempt to delete any data and will fail if the endpoint already exists in the destination.
+With these values set, run the script. The script will not attempt to delete any data and will fail if the model and version already exist in the destination.
 """
 
 from locale import atoi
@@ -53,7 +52,6 @@ config = {
         'workspace': params['VERTA_SOURCE_WORKSPACE']
     },
     'dest': {
-        'endpoint_path': os.environ.get('VERTA_DEST_ENDPOINT_PATH'),  # optional
         'host': params['VERTA_DEST_HOST'],
         'email': params['VERTA_DEST_EMAIL'],
         'devkey': params['VERTA_DEST_DEV_KEY'],
@@ -122,17 +120,6 @@ def patch(auth, path, body):
             print(f"Error: {e.response.text}")
         raise e
     return res.json()
-
-
-def get_endpoint(auth, endpoint):
-    endpoints = post(auth, '/api/v1/deployment/endpoints', {"exactPaths": [endpoint]})
-    return endpoints['endpoints'][0]
-
-
-def get_endpoint_stages(auth, endpoint_id):
-    path = "/api/v1/deployment/workspace/{}/endpoints/{}/stages".format(auth['workspace'], endpoint_id)
-    stages = get(auth, path)
-    return stages['stages']
 
 
 def get_build(auth, build_id):
