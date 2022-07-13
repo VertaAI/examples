@@ -3,9 +3,15 @@
 This is a Python script that will copy/promote a Verta Build from one environment
 to another.
 
+- The script will use the model version passed in the VERTA_SOURCE_MODEL_VERSION_ID environment variable
+as the model version to promote.
+- The latest self contained build of the model version will be promoted. The promotion process will terminate if no
+self contained builds of the model version are found.
+- If you need to create a self contained build of a model version, use the create_scb.py script.
+
 Configuration is done via environment variables. All are mandatory:
 
-- VERTA_SOURCE_BUILD_ID: The ID of the build to promote
+- VERTA_SOURCE_MODEL_VERSION_ID: The ID of the model version to promote
 - VERTA_SOURCE_HOST: The source Verta instance to promote from
 - VERTA_SOURCE_EMAIL: The email address for authentication to the source Verta instance
 - VERTA_SOURCE_DEV_KEY: The dev key associated to the email address on the source Verta instance
@@ -25,8 +31,9 @@ from locale import atoi
 
 import requests
 import os
+import datetime
 
-env_vars = ['VERTA_SOURCE_BUILD_ID', 'VERTA_SOURCE_HOST', 'VERTA_SOURCE_EMAIL', 'VERTA_SOURCE_DEV_KEY',
+env_vars = ['VERTA_SOURCE_MODEL_VERSION_ID', 'VERTA_SOURCE_HOST', 'VERTA_SOURCE_EMAIL', 'VERTA_SOURCE_DEV_KEY',
             'VERTA_SOURCE_WORKSPACE', 'VERTA_DEST_HOST', 'VERTA_DEST_EMAIL', 'VERTA_DEST_DEV_KEY',
             'VERTA_DEST_WORKSPACE']
 params = {}
@@ -45,7 +52,7 @@ else:
 
 config = {
     'source': {
-        'build_id': atoi(params['VERTA_SOURCE_BUILD_ID']),
+        'model_version_id': atoi(params['VERTA_SOURCE_MODEL_VERSION_ID']),
         'host': params['VERTA_SOURCE_HOST'],
         'email': params['VERTA_SOURCE_EMAIL'],
         'devkey': params['VERTA_SOURCE_DEV_KEY'],
@@ -62,7 +69,6 @@ config = {
 
 def copy_fields(fields, src, dest):
     for field in fields:
-        # Don't try to copy if nothing's there
         if field in src.keys():
             dest[field] = src[field]
 
@@ -124,6 +130,11 @@ def patch(auth, path, body):
 
 def get_build(auth, build_id):
     path = "/api/v1/deployment/builds/{}".format(build_id)
+    return get(auth, path)
+
+
+def get_builds(auth, source):
+    path = "/api/v1/deployment/builds/?workspaceName={}&model_version_id={}".format(source['workspace'], source['model_version_id'])
     return get(auth, path)
 
 
@@ -227,28 +238,41 @@ def upload_artifacts(auth, model_version_id, artifacts):
 
 def get_promotion_data(_config):
     source = _config['source']
-    
-    print("Fetching promotion data for build %d" % source['build_id'])
-    source_auth = auth_context(source['host'], source['email'], source['devkey'], source['workspace'])
-    build = get_build(source_auth, _config['source']['build_id'])
-    if 'self_contained' not in build['creator_request']:
-        print("WARNING: Build %d is not self contained. Endpoint containers will download artifacts at runtime."
-              % build['id']
-              )
+    model_version_id = source['model_version_id']
 
-    model_version_id = build['creator_request']['model_version_id']
+    print("Fetching promotion data for model version %d" % source['model_version_id'])
+    source_auth = auth_context(source['host'], source['email'], source['devkey'], source['workspace'])
     model_version = get_model_version(source_auth, model_version_id)
-    registered_model_id = model_version['registered_model_id']
-    model = get_registered_model(source_auth, registered_model_id)
+
+    all_builds = get_builds(source_auth, source)
+
+    time_format = '%Y-%m-%dT%H:%M:%S.%fZ'
+
+    model_version_builds = []
+    for build in all_builds['builds']:
+        if 'model_version_id' in build['creator_request'] and 'self_contained' in build['creator_request']:
+            if build['creator_request']['model_version_id'] == model_version_id:
+                build['parsed_date'] = datetime.datetime.strptime(build['date_created'], time_format)
+                model_version_builds.append(build)
+
+    if not len(model_version_builds):
+        print("No self contained builds found for model version id %d, promotion stopped." % source['model_version_id'])
+        raise SystemExit(1)
+
+    build = model_version_builds[0]
+    for mv_build in model_version_builds:
+        if mv_build['parsed_date'] > build['parsed_date']:
+            build = mv_build
+
+    model = get_registered_model(source_auth,  model_version['registered_model_id'])
     artifacts = download_artifacts(source_auth, model_version_id, model_version['artifacts'], model_version['model'])
 
     promotion = {
-        'build': build,
-        'model_version': model_version,
-        'model': model,
-        'artifacts': artifacts
+         'build': build,
+         'model_version': model_version,
+         'model': model,
+         'artifacts': artifacts
     }
-
     return promotion
 
 
@@ -305,7 +329,6 @@ def upload_build(source_build):
 
 
 def create_promotion(_config, promotion):
-    source = _config['source']
     dest = _config['dest']
     
     dest_auth = auth_context(dest['host'], dest['email'], dest['devkey'], dest['workspace'])
