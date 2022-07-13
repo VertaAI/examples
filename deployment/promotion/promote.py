@@ -265,7 +265,7 @@ def get_promotion_data(_config):
     artifacts = download_artifacts(source_auth, model_version_id, model_version['artifacts'], model_version['model'])
 
     promotion = {
-         'build': b,
+         'build': build,
          'model_version': model_version,
          'model': model,
          'artifacts': artifacts
