@@ -257,7 +257,7 @@ def get_promotion_data(_config):
                 latest_date = build_date
                 build = b
 
-    if not build:
+    if not build or not latest_date:
         print("No self contained builds found for model version id %d, promotion stopped." % source['model_version_id'])
         raise SystemExit(1)
 
