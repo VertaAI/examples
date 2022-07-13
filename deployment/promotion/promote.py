@@ -248,27 +248,24 @@ def get_promotion_data(_config):
 
     time_format = '%Y-%m-%dT%H:%M:%S.%fZ'
 
-    model_version_builds = []
-    for build in all_builds['builds']:
-        if 'model_version_id' in build['creator_request'] and 'self_contained' in build['creator_request']:
-            if build['creator_request']['model_version_id'] == model_version_id:
-                build['parsed_date'] = datetime.datetime.strptime(build['date_created'], time_format)
-                model_version_builds.append(build)
+    build = None
+    latest_date = None
+    for b in all_builds['builds']:
+        if 'self_contained' in b['creator_request']:
+            build_date = datetime.datetime.strptime(b['date_created'], time_format)
+            if not latest_date or build_date > latest_date:
+                latest_date = build_date
+                build = b
 
-    if not len(model_version_builds):
+    if not build:
         print("No self contained builds found for model version id %d, promotion stopped." % source['model_version_id'])
         raise SystemExit(1)
-
-    build = model_version_builds[0]
-    for mv_build in model_version_builds:
-        if mv_build['parsed_date'] > build['parsed_date']:
-            build = mv_build
 
     model = get_registered_model(source_auth,  model_version['registered_model_id'])
     artifacts = download_artifacts(source_auth, model_version_id, model_version['artifacts'], model_version['model'])
 
     promotion = {
-         'build': build,
+         'build': b,
          'model_version': model_version,
          'model': model,
          'artifacts': artifacts
