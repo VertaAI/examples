@@ -5,11 +5,11 @@ to another.
 
 - The script will use the model version passed in the VERTA_SOURCE_MODEL_VERSION_ID environment variable
 as the model version to promote.
-- The latest self contained build of the model version will be promoted. The promotion process will terminate if no
-self contained builds of the model version are found.
-- If you need to create a self contained build of a model version, use the create_scb.py script.
+- The latest self-contained build of the model version will be promoted. The promotion process will terminate if no
+self-contained builds of the model version are found.
+- If you need to create a self-contained build of a model version, use the create_scb.py script.
 
-Configuration is done via environment variables. All are mandatory:
+Configuration is done via environment variables. All are mandatory except VERTA_DEST_REGISTERED_MODEL_ID:
 
 - VERTA_SOURCE_MODEL_VERSION_ID: The ID of the model version to promote
 - VERTA_SOURCE_HOST: The source Verta instance to promote from
@@ -20,11 +20,13 @@ Configuration is done via environment variables. All are mandatory:
 - VERTA_DEST_EMAIL: The email address for authentication to the destination Verta instance
 - VERTA_DEST_DEV_KEY: The dev key associated to the email address on the destination Verta instance
 - VERTA_DEST_WORKSPACE: The workspace associated with the build on the destination Verta instance
+- VERTA_DEST_REGISTERED_MODEL_ID: [optional] The ID of the registered model to promote to. If missing, we'll create a new registered model
 
 Optional environment variables to configure curl usage:
 VERTA_CURL_OPTS: Options to pass to curl. Defaults to '-O'
 
-With these values set, run the script. The script will not attempt to delete any data and will fail if the model and version already exist in the destination.
+With these values set, run the script. The script will not attempt to delete any data and will fail if the registered
+model (if an existing one has not been provided) or version already exists in the destination.
 """
 
 from locale import atoi
@@ -35,13 +37,19 @@ import datetime
 
 env_vars = ['VERTA_SOURCE_MODEL_VERSION_ID', 'VERTA_SOURCE_HOST', 'VERTA_SOURCE_EMAIL', 'VERTA_SOURCE_DEV_KEY',
             'VERTA_SOURCE_WORKSPACE', 'VERTA_DEST_HOST', 'VERTA_DEST_EMAIL', 'VERTA_DEST_DEV_KEY',
-            'VERTA_DEST_WORKSPACE']
+            'VERTA_DEST_WORKSPACE', 'VERTA_DEST_REGISTERED_MODEL_ID']
 params = {}
+
+create_new_registered_model = False
 
 for param_name in env_vars:
     param = os.environ.get(param_name)
     if not param:
-        raise Exception("Missing environment variable %s", param_name)
+        # 'VERTA_DEST_REGISTERED_MODEL_ID' is optional; don't exit
+        if param_name != 'VERTA_DEST_REGISTERED_MODEL_ID':
+            raise Exception("Missing environment variable %s", param_name)
+        else:
+            create_new_registered_model = True
     params[param_name] = param
 
 curl_opts = os.environ.get('VERTA_CURL_OPTS')
@@ -62,7 +70,8 @@ config = {
         'host': params['VERTA_DEST_HOST'],
         'email': params['VERTA_DEST_EMAIL'],
         'devkey': params['VERTA_DEST_DEV_KEY'],
-        'workspace': params['VERTA_DEST_WORKSPACE']
+        'workspace': params['VERTA_DEST_WORKSPACE'],
+        'registered_model_id': params['VERTA_DEST_REGISTERED_MODEL_ID']
     }
 }
 
@@ -332,7 +341,11 @@ def create_promotion(_config, promotion):
 
     print("Starting promotion")
     build_location = upload_build(promotion['build'])
-    model = create_model(dest_auth, promotion['model'], promotion['artifacts'])
+    if create_new_registered_model:
+        model = create_model(dest_auth, promotion['model'], promotion['artifacts'])
+    else:
+        model = get_registered_model(dest_auth, dest['registered_model_id'])
+        print("Using existing registered model '%s'" % model['name'])
     model_version = create_model_version(dest_auth, promotion['model_version'], model)
 
     artifacts_and_model = promotion['artifacts']
