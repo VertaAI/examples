@@ -37,19 +37,19 @@ import datetime
 
 env_vars = ['VERTA_SOURCE_MODEL_VERSION_ID', 'VERTA_SOURCE_HOST', 'VERTA_SOURCE_EMAIL', 'VERTA_SOURCE_DEV_KEY',
             'VERTA_SOURCE_WORKSPACE', 'VERTA_DEST_HOST', 'VERTA_DEST_EMAIL', 'VERTA_DEST_DEV_KEY',
-            'VERTA_DEST_WORKSPACE', 'VERTA_DEST_REGISTERED_MODEL_ID']
+            'VERTA_DEST_WORKSPACE']
+opt_env_vars = ['VERTA_DEST_REGISTERED_MODEL_ID']
 params = {}
 
-create_new_registered_model = False
 
 for param_name in env_vars:
     param = os.environ.get(param_name)
     if not param:
-        # 'VERTA_DEST_REGISTERED_MODEL_ID' is optional; don't exit
-        if param_name != 'VERTA_DEST_REGISTERED_MODEL_ID':
-            raise Exception("Missing environment variable %s", param_name)
-        else:
-            create_new_registered_model = True
+        raise KeyError("Missing environment variable %s", param_name)
+    params[param_name] = param
+
+for param_name in opt_env_vars:
+    param = os.environ.get(param_name)
     params[param_name] = param
 
 curl_opts = os.environ.get('VERTA_CURL_OPTS')
@@ -71,7 +71,7 @@ config = {
         'email': params['VERTA_DEST_EMAIL'],
         'devkey': params['VERTA_DEST_DEV_KEY'],
         'workspace': params['VERTA_DEST_WORKSPACE'],
-        'registered_model_id': params['VERTA_DEST_REGISTERED_MODEL_ID']
+        'registered_model_id': params['VERTA_DEST_REGISTERED_MODEL_ID']  # Will be empty if no destination RM was provided
     }
 }
 
@@ -341,7 +341,7 @@ def create_promotion(_config, promotion):
 
     print("Starting promotion")
     build_location = upload_build(promotion['build'])
-    if create_new_registered_model:
+    if not dest['registered_model_id']:
         model = create_model(dest_auth, promotion['model'], promotion['artifacts'])
     else:
         model = get_registered_model(dest_auth, dest['registered_model_id'])
