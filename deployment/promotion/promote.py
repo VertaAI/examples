@@ -312,14 +312,25 @@ def patch_model(auth, registered_model_id, model_version_id, model):
     return patch(auth, path, update)
 
 
-def create_build(auth, model_version_id, external_location):
+def create_build(auth, model_version_id, external_location, source_build):
     print("Creating build of model version '%s'" % model_version_id)
+    cr = source_build['creator_request']
     path = '/api/v1/deployment/workspace/{}/builds'.format(auth['workspace'])
     build = {
         'external_location': external_location,
         'model_version_id': int(model_version_id),
+        'requires_root': cr['requires_root'],
+        'scan_external': cr['scan_external'],
+        'self_contained': cr['self_contained'],
+        'uses_flask': cr['uses_flask']
     }
     return post(auth, path, build)
+
+
+def update_build_message(auth, source_build, dest_build):
+    message = source_build['message']
+    print("Setting %d byte build message" % len(message))
+    put(auth, "/api/v1/deployment/builds/{}/message".format(dest_build['id']), message)
 
 
 # Modify this function to download and re-upload the build image as needed
@@ -356,7 +367,9 @@ def create_promotion(_config, promotion):
     model_artifact['path'] = artifact_paths['model']
     patch_model(dest_auth, model['id'], model_version['id'], model_artifact)
 
-    return create_build(dest_auth, model_version['id'], build_location)
+    dest_build = create_build(dest_auth, model_version['id'], build_location, promotion['build'])
+    update_build_message(dest_auth, promotion['build'], dest_build)
+    return dest_build
 
 
 def promote(_config):
