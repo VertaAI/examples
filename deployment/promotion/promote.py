@@ -288,7 +288,7 @@ def create_model(auth, source_model, source_artifacts):
     model = {
         'artifacts': source_artifacts
     }
-    copy_fields(['labels', 'custom_permission', 'name', 'readme_text', 'resource_visibility'], source_model, model)
+    copy_fields(['labels', 'custom_permission', 'name', 'readme_text', 'resource_visibility', 'description'], source_model, model)
     return post(auth, path, model)['registered_model']
 
 
@@ -299,7 +299,7 @@ def create_model_version(auth, source_model_version, promoted_model):
     if 'labels' in source_model_version.keys():
         model_version['labels'] = source_model_version['labels']
 
-    fields = ['artifacts', 'attributes', 'environment', 'version', 'readme_text', 'model']
+    fields = ['artifacts', 'attributes', 'environment', 'version', 'readme_text', 'model', 'description', 'labels']
     copy_fields(fields, source_model_version, model_version)
     return post(auth, path, model_version)['model_version']
 
