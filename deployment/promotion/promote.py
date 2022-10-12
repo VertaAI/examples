@@ -288,7 +288,7 @@ def create_model(auth, source_model, source_artifacts):
     model = {
         'artifacts': source_artifacts
     }
-    copy_fields(['labels', 'custom_permission', 'name', 'readme_text', 'resource_visibility'], source_model, model)
+    copy_fields(['labels', 'custom_permission', 'name', 'readme_text', 'resource_visibility', 'description'], source_model, model)
     return post(auth, path, model)['registered_model']
 
 
@@ -299,7 +299,7 @@ def create_model_version(auth, source_model_version, promoted_model):
     if 'labels' in source_model_version.keys():
         model_version['labels'] = source_model_version['labels']
 
-    fields = ['artifacts', 'attributes', 'environment', 'version', 'readme_text', 'model']
+    fields = ['artifacts', 'attributes', 'environment', 'version', 'readme_text', 'model', 'description', 'labels']
     copy_fields(fields, source_model_version, model_version)
     return post(auth, path, model_version)['model_version']
 
@@ -363,8 +363,12 @@ def create_promotion(_config, promotion):
     artifacts_and_model.append(model_version['model'])
     artifact_paths = upload_artifacts(dest_auth, model_version['id'], artifacts_and_model)
 
+    # Standard RMVs will have artifact path 'model' while ER->RMVs will have artifact path 'model.pkl'
     model_artifact = model_version['model']
-    model_artifact['path'] = artifact_paths['model']
+    if 'model' in artifact_paths.keys():
+        model_artifact['path'] = artifact_paths['model']
+    else:
+        model_artifact['path'] = artifact_paths['model.pkl']
     patch_model(dest_auth, model['id'], model_version['id'], model_artifact)
 
     dest_build = create_build(dest_auth, model_version['id'], build_location, promotion['build'])
