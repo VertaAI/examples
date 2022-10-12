@@ -363,8 +363,13 @@ def create_promotion(_config, promotion):
     artifacts_and_model.append(model_version['model'])
     artifact_paths = upload_artifacts(dest_auth, model_version['id'], artifacts_and_model)
 
-    model_artifact = model_version['model']
-    model_artifact['path'] = artifact_paths['model']
+    # Standard RMVs will have artifact 'model' while ER->RMVs will have artifact 'model.pkl'
+    if 'model' in artifact_paths.keys():
+        model_artifact = model_version['model']
+        model_artifact['path'] = artifact_paths['model']
+    else:
+        model_artifact = model_version['model']
+        model_artifact['path'] = artifact_paths['model.pkl']
     patch_model(dest_auth, model['id'], model_version['id'], model_artifact)
 
     dest_build = create_build(dest_auth, model_version['id'], build_location, promotion['build'])
