@@ -17,11 +17,11 @@ from verta.utils import ModelAPI
 
 
 class DetectObject(VertaModelBase):
-    def __init__(self, artifacts = None):
+    def __init__(self, artifacts=None):
         module_handle = 'https://tfhub.dev/google/openimages_v4/ssd/mobilenet_v2/1'
         self.detector = hub.load(module_handle).signatures['default']
     
-    def handle_img(self, data, width = 512, height = 512):
+    def handle_img(self, data, width=640, height=480):
         _, path = tempfile.mkstemp(suffix = '.jpg')
         file_path = f"{tempfile.gettempdir()}/tmp-{data[0].split('/')[-1]}"
         urllib.request.urlretrieve(data[1], file_path)
@@ -35,14 +35,14 @@ class DetectObject(VertaModelBase):
 
     def load_img(self, path):
         img = tf.io.read_file(path)
-        img = tf.image.decode_jpeg(img, channels = 3)
+        img = tf.image.decode_jpeg(img, channels=3)
         
         return img
 
-    def filter_results(self, file, response, entity = 'Car', min_score = .2):
+    def filter_results(self, file, response, entity='Car', min_score=.2):
         unused_keys = ['detection_class_labels', 'detection_class_names']
         response = {key: value.numpy().tolist() for key, value in response.items()}
-        response = dict([(key, val) for key, val in response.items() if key not in unused_keys])
+        response = {key: val for key, val in response.items() if key not in unused_keys}
         response['detection_class_entities'] = [v.decode() for v in response['detection_class_entities']]
 
         entities = response['detection_class_entities']
@@ -55,7 +55,7 @@ class DetectObject(VertaModelBase):
                 ymin, xmin, ymax, xmax = bboxes[i]
                 result = {
                     'file': file,
-                    'has_car': 1,
+                    'has_car': True,
                     'score': scores[i],
                     'bboxes': {'ymin': ymin, 'xmin': xmin, 'ymax': ymax, 'xmax': xmax}
                 }
@@ -64,7 +64,7 @@ class DetectObject(VertaModelBase):
         if len(result) == 0:
             result = {
                 'file': file,
-                'has_car': 0,
+                'has_car': False,
                 'score': 0,
                 'bboxes': {'ymin': 0, 'xmin': 0, 'ymax': 0, 'xmax': 0}
             }
@@ -83,7 +83,7 @@ class DetectObject(VertaModelBase):
 
     def detect_objects(self, data):
         start_time = time.time()
-        image_path = self.handle_img(data, 640, 480)
+        image_path = self.handle_img(data)
         result = self.run_detector(data[0], image_path)
         end_time = time.time()
 
@@ -101,7 +101,7 @@ os.environ['VERTA_HOST'] = ''
 os.environ['VERTA_EMAIL'] = ''
 os.environ['VERTA_DEV_KEY'] = ''
 
-client = Client(os.environ['VERTA_HOST'], use_git = False)
+client = Client(os.environ['VERTA_HOST'])
 project = client.set_project(PROJECT_NAME)
 registered_model = client.get_or_create_registered_model(
     name = 'Object Detection', 
@@ -114,7 +114,7 @@ input = {
 }
 output = {
     "file_name": "",
-    "has_car": 0,
+    "has_car": False,
     "score": 0,
     "ymin": 0,
     "xmin": 0,

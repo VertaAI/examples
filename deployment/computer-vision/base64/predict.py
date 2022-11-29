@@ -61,7 +61,7 @@ def main():
         
     start_time = time.time()
     pool = mp.Pool(n_threads)
-    map_results = pool.map_async(model.predict, imgs, chunksize = 1)
+    map_results = pool.map_async(model.predict, imgs, chunksize=1)
 
     while not map_results.ready():
         print(f"Images remaining: {map_results._number_left}")
