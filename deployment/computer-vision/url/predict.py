@@ -1,3 +1,4 @@
+import configparser
 import multiprocessing as mp
 import os
 import pandas as pd
@@ -29,19 +30,24 @@ def save_results(results, n_urls):
         data.append(values)
 
     df = pd.DataFrame(data, columns = cols)
-    df.to_csv(f"{n_urls}.csv", index = False)
+    df.to_csv(f"results/{n_urls}.csv", index = False)
 
 def main():
-    os.environ['VERTA_HOST'] = ''
-    os.environ['VERTA_EMAIL'] = ''
-    os.environ['VERTA_DEV_KEY'] = ''
+    config = configparser.ConfigParser()
+    config.read('config.ini')
 
-    client = Client(os.environ['VERTA_HOST'], debug = True)
-    endpoint = client.get_or_create_endpoint('object-detection-v1-url')
+    VERTA_HOST = config['APP']['VERTA_HOST']
+    ENDPOINT_NAME = config['APP']['ENDPOINT_NAME']
+
+    os.environ['VERTA_EMAIL'] = config['APP']['VERTA_EMAIL']
+    os.environ['VERTA_DEV_KEY'] = config['APP']['VERTA_DEV_KEY']
+
+    client = Client(VERTA_HOST, debug=True)
+    endpoint = client.get_or_create_endpoint(ENDPOINT_NAME)
     model = endpoint.get_deployed_model()
 
-    n_urls = 10
     n_threads = int(mp.cpu_count())
+    n_urls = 5
     urls = load_urls()[:n_urls]
 
     start_time = time.time()
