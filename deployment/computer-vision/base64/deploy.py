@@ -1,4 +1,5 @@
 import base64
+import configparser
 import io
 import json
 import numpy as np
@@ -25,11 +26,11 @@ class DetectObject(VertaModelBase):
         self.detector = hub.load(module_handle).signatures['default']
     
     def handle_img(self, img, width=640, height=480):
-        _, path = tempfile.mkstemp(suffix = '.jpg')
+        _, path = tempfile.mkstemp(suffix='.jpg')
         img_str = json.loads(img)
         img_bytes = img_str.encode('utf-8')
         img_bytes = io.BytesIO(base64.b64decode(img_bytes))
-        img_arr = np.array(Image.open(img_bytes), dtype = np.uint8)
+        img_arr = np.array(Image.open(img_bytes), dtype=np.uint8)
         img = Image.fromarray(img_arr)
         img = ImageOps.grayscale(img)
         img.thumbnail((width, height), Image.Resampling.LANCZOS)
@@ -102,15 +103,22 @@ class DetectObject(VertaModelBase):
 
         return result
 
-PROJECT_NAME = 'Object Detection'
-os.environ['VERTA_HOST'] = ''
-os.environ['VERTA_EMAIL'] = ''
-os.environ['VERTA_DEV_KEY'] = ''
 
-client = Client(os.environ['VERTA_HOST'])
+config = configparser.ConfigParser()
+config.read('config.ini')
+
+VERTA_HOST = config['APP']['VERTA_HOST']
+PROJECT_NAME = config['APP']['PROJECT_NAME']
+MODEL_NAME = config['APP']['MODEL_NAME']
+ENDPOINT_NAME = config['APP']['ENDPOINT_NAME']
+
+os.environ['VERTA_EMAIL'] = config['APP']['VERTA_EMAIL']
+os.environ['VERTA_DEV_KEY'] = config['APP']['VERTA_DEV_KEY']
+
+client = Client(VERTA_HOST)
 project = client.set_project(PROJECT_NAME)
 registered_model = client.get_or_create_registered_model(
-    name = 'Object Detection', 
+    name = PROJECT_NAME, 
     labels = ['object-detection']
 )
 
@@ -132,7 +140,7 @@ model = registered_model.create_standard_model(
     model_cls = DetectObject,
     environment = Python(requirements = ['tensorflow', 'tensorflow_hub', 'matplotlib']),
     model_api = ModelAPI([input], [output]),
-    name = 'v2-base64'
+    name = MODEL_NAME
 )
 
 autoscaling = Autoscaling(min_replicas = 1, max_replicas = 20, min_scale = 0.1, max_scale = 10)
@@ -141,7 +149,7 @@ autoscaling.add_metric(MemoryUtilizationTarget(0.7))
 autoscaling.add_metric(RequestsPerWorkerTarget(1))
 resources = Resources(cpu = 2., memory = '12Gi')
 
-endpoint = client.get_or_create_endpoint('object-detection-v2-base64')
+endpoint = client.get_or_create_endpoint(ENDPOINT_NAME)
 status = endpoint.update(
     model, 
     strategy = DirectUpdateStrategy(),

@@ -1,4 +1,5 @@
 import base64
+import configparser
 import multiprocessing as mp
 import numpy as np
 import os
@@ -43,20 +44,25 @@ def save_results(results, n_imgs):
         values.extend(list(item['bboxes'].values()))
         data.append(values)
 
-    df = pd.DataFrame(data, columns = cols)
-    df.to_csv(f"{n_imgs}.csv", index = False)
+    df = pd.DataFrame(data, columns=cols)
+    df.to_csv(f"results/{n_imgs}.csv", index=False)
 
 def main():
-    os.environ['VERTA_HOST'] = ''
-    os.environ['VERTA_EMAIL'] = ''
-    os.environ['VERTA_DEV_KEY'] = ''
+    config = configparser.ConfigParser()
+    config.read('config.ini')
 
-    client = Client(os.environ['VERTA_HOST'], debug = True)
-    endpoint = client.get_or_create_endpoint('object-detection-v2-base64')
+    VERTA_HOST = config['APP']['VERTA_HOST']
+    ENDPOINT_NAME = config['APP']['ENDPOINT_NAME']
+
+    os.environ['VERTA_EMAIL'] = config['APP']['VERTA_EMAIL']
+    os.environ['VERTA_DEV_KEY'] = config['APP']['VERTA_DEV_KEY']
+
+    client = Client(VERTA_HOST, debug=True)
+    endpoint = client.get_or_create_endpoint(ENDPOINT_NAME)
     model = endpoint.get_deployed_model()
 
     n_threads = int(mp.cpu_count())
-    n_imgs = 5000
+    n_imgs = 5  
     imgs = load_imgs(n_imgs)
         
     start_time = time.time()
