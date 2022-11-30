@@ -1,4 +1,3 @@
-import configparser
 import multiprocessing as mp
 import os
 import pandas as pd
@@ -8,8 +7,20 @@ from verta import Client
 
 
 def load_urls():
-    with open('urls.txt', 'r') as f:
-        return [[line.strip().split('/')[-1], line.strip()] for line in f]
+    urls = [
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000001_0.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000001_1.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000001_2.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000001_3.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000001_4.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000001_5.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000002_0.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000002_1.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000002_2.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000002_3.jpg'
+    ]
+    
+    return [[url.strip().split('/')[-1], url.strip()] for url in urls]
 
 def show_metrics(n_urls, n_threads, start_time, end_time):
     total_time = end_time - start_time
@@ -19,7 +30,7 @@ def show_metrics(n_urls, n_threads, start_time, end_time):
     print(f'Threads: {n_threads}.')
     print(f'Total time: {total_time}.')
 
-def save_results(results, n_urls):
+def show_results(results):
     cols = list(results[0].keys())[:-1]
     cols.extend(list(results[0]['bboxes'].keys()))
     data = []
@@ -30,17 +41,14 @@ def save_results(results, n_urls):
         data.append(values)
 
     df = pd.DataFrame(data, columns = cols)
-    df.to_csv(f"results/{n_urls}.csv", index = False)
+    print(df)
 
 def main():
-    config = configparser.ConfigParser()
-    config.read('config.ini')
+    VERTA_HOST = 'app.verta.ai'
+    ENDPOINT_NAME = 'object-detection-url'
 
-    VERTA_HOST = config['APP']['VERTA_HOST']
-    ENDPOINT_NAME = config['APP']['ENDPOINT_NAME']
-
-    os.environ['VERTA_EMAIL'] = config['APP']['VERTA_EMAIL']
-    os.environ['VERTA_DEV_KEY'] = config['APP']['VERTA_DEV_KEY']
+    os.environ['VERTA_EMAIL'] = ''
+    os.environ['VERTA_DEV_KEY'] = ''
 
     client = Client(VERTA_HOST, debug=True)
     endpoint = client.get_or_create_endpoint(ENDPOINT_NAME)
@@ -64,7 +72,7 @@ def main():
     end_time = time.time()
 
     show_metrics(n_urls, n_threads, start_time, end_time)
-    save_results(results, n_urls)
+    show_results(results)
 
 
 if __name__ == '__main__':

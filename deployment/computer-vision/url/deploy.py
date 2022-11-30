@@ -1,4 +1,3 @@
-import configparser
 import os
 import tempfile
 import tensorflow as tf
@@ -97,17 +96,35 @@ class DetectObject(VertaModelBase):
 
         return result
 
+    def describe(self):
+        """Return a description of the service."""
+        return {
+            "method": "predict",
+            "args": "http://s3.amazonaws.com/verta-starter/street-view-images/000001_0.jpg",
+            "returns": "file, has_car, score, ymin, xmin, ymax, xmax",
+            "description": """
+                Identify whether a given object is present in the URL image, with its score and bounding boxes.
+            """,
+            "input_description": """
+                A list with image URLs.
+            """,
+            "output_description": """
+                A CSV file with information about all the processed images.
+                The columns presents the file names, if the object was found (boolean), its score and bounding boxes.
+            """
+        }
+    
+    def example(self):
+        """Return example input json-serializable data."""
+        return ["000001_0.jpg", "http://s3.amazonaws.com/verta-starter/street-view-images/000001_0.jpg"]
 
-config = configparser.ConfigParser()
-config.read('config.ini')
+VERTA_HOST = 'app.verta.ai'
+PROJECT_NAME = 'Object Detection V2'
+MODEL_NAME = 'url'
+ENDPOINT_NAME = 'object-detection-url'
 
-VERTA_HOST = config['APP']['VERTA_HOST']
-PROJECT_NAME = config['APP']['PROJECT_NAME']
-MODEL_NAME = config['APP']['MODEL_NAME']
-ENDPOINT_NAME = config['APP']['ENDPOINT_NAME']
-
-os.environ['VERTA_EMAIL'] = config['APP']['VERTA_EMAIL']
-os.environ['VERTA_DEV_KEY'] = config['APP']['VERTA_DEV_KEY']
+os.environ['VERTA_EMAIL'] = ''
+os.environ['VERTA_DEV_KEY'] = ''
 
 client = Client(VERTA_HOST)
 project = client.set_project(PROJECT_NAME)
