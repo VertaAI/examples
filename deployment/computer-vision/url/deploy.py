@@ -132,7 +132,7 @@ output = {
 
 model = registered_model.create_standard_model(
     model_cls = DetectObject,
-    environment = Python(requirements = ['tensorflow', 'tensorflow_hub', 'matplotlib']),
+    environment = Python(requirements = ['tensorflow', 'tensorflow_hub', 'dill', 'Pillow', 'urllib3']),
     model_api = ModelAPI([input], [output]),
     name = MODEL_NAME
 )
