@@ -1,9 +1,13 @@
+import base64
+import io
+import json
+import numpy as np
 import os
 import tempfile
 import tensorflow as tf
 import tensorflow_hub as hub
 import time
-import urllib.request
+import wget
 
 from PIL import Image, ImageOps
 from verta import Client
@@ -20,15 +24,29 @@ class DetectObject(VertaModelBase):
     def __init__(self, artifacts=None):
         module_handle = 'https://tfhub.dev/google/openimages_v4/ssd/mobilenet_v2/1'
         self.detector = hub.load(module_handle).signatures['default']
+
+        url = 'http://s3.amazonaws.com/verta-starter/street-view-images/000001_0.jpg'
+        file = url.split('/')[-1]
+        wget.download(url, file)
+
+        with open(file, 'rb') as img:
+            img_bytes = base64.b64encode(img.read())
+            img_str = img_bytes.decode('utf-8')
+            img_str = json.dumps(img_str)
+            img_str = np.array(img_str).tolist()
+        
+        self.img_base64 = img_str
     
-    def handle_img(self, data, width=640, height=480):
+    def handle_img(self, img, width=640, height=480):
         _, path = tempfile.mkstemp(suffix='.jpg')
-        file_path = f"{tempfile.gettempdir()}/tmp-{data[0].split('/')[-1]}"
-        urllib.request.urlretrieve(data[1], file_path)
-        img = Image.open(file_path)
+        img_str = json.loads(img)
+        img_bytes = img_str.encode('utf-8')
+        img_bytes = io.BytesIO(base64.b64decode(img_bytes))
+        img_arr = np.array(Image.open(img_bytes), dtype=np.uint8)
+        img = Image.fromarray(img_arr)
         img = ImageOps.grayscale(img)
         img.thumbnail((width, height), Image.Resampling.LANCZOS)
-        img.save(path, format='JPEG', quality=90)
+        img.save(path, format = 'JPEG', quality = 90)
         
         print(f"Image downloaded to {path}.")
         return path
@@ -81,10 +99,10 @@ class DetectObject(VertaModelBase):
         
         return result
 
-    def detect_objects(self, data):
+    def detect_objects(self, file, img_arr):
         start_time = time.time()
-        image_path = self.handle_img(data)
-        result = self.run_detector(data[0], image_path)
+        image_path = self.handle_img(img_arr)
+        result = self.run_detector(file, image_path)
         end_time = time.time()
 
         print(f"Inference time: {end_time - start_time}.")
@@ -92,21 +110,22 @@ class DetectObject(VertaModelBase):
 
     @verify_io
     def predict(self, data):
-        result = self.detect_objects(data)
+        file, img_arr = data
+        result = self.detect_objects(file, img_arr)
 
         return result
 
     def describe(self):
-        """Return a description of the service."""
+        """Return a description of the service."""        
         return {
             "method": "predict",
-            "args": "http://s3.amazonaws.com/verta-starter/street-view-images/000001_0.jpg",
+            "args": f"{self.img_base64}",
             "returns": "file, has_car, score, ymin, xmin, ymax, xmax",
             "description": """
-                Identify whether a given object is present in the URL image, with its score and bounding boxes.
+                Identify whether a given object is present in the image, with its score and bounding boxes.
             """,
             "input_description": """
-                A list with image URLs.
+                A list with base64 images.
             """,
             "output_description": """
                 A CSV file with information about all the processed images.
@@ -116,12 +135,12 @@ class DetectObject(VertaModelBase):
     
     def example(self):
         """Return example input json-serializable data."""
-        return ["000001_0.jpg", "http://s3.amazonaws.com/verta-starter/street-view-images/000001_0.jpg"]
+        return ["000001_0.jpg", self.img_base64]
 
 VERTA_HOST = 'app.verta.ai'
-PROJECT_NAME = 'Object Detection V2'
-MODEL_NAME = 'url'
-ENDPOINT_NAME = 'object-detection-url'
+PROJECT_NAME = 'Object Detection V1'
+MODEL_NAME = 'base64'
+ENDPOINT_NAME = 'object-detection-base64'
 
 os.environ['VERTA_EMAIL'] = ''
 os.environ['VERTA_DEV_KEY'] = ''
@@ -149,7 +168,7 @@ output = {
 
 model = registered_model.create_standard_model(
     model_cls = DetectObject,
-    environment = Python(requirements = ['tensorflow', 'tensorflow_hub', 'dill', 'Pillow', 'urllib3']),
+    environment = Python(requirements = ['tensorflow', 'tensorflow_hub', 'dill', 'Pillow', 'wget']),
     model_api = ModelAPI([input], [output]),
     name = MODEL_NAME
 )
@@ -172,5 +191,13 @@ status = endpoint.update(
 assert status['status'] == "active"
 url = 'http://s3.amazonaws.com/verta-starter/street-view-images/000001_0.jpg'
 file = url.split('/')[-1]
-endpoint.get_deployed_model().predict([file, url])
+wget.download(url, file)
+
+with open(file, 'rb') as img:
+    img_bytes = base64.b64encode(img.read())
+    img_str = img_bytes.decode('utf-8')
+    img_str = json.dumps(img_str)
+    img_str = np.array(img_str).tolist()
+
+endpoint.get_deployed_model().predict([file, img_str])
 print(status)
