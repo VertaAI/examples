@@ -1,22 +1,31 @@
 import base64
-import configparser
 import multiprocessing as mp
 import numpy as np
 import os
 import pandas as pd
 import time
 import json
+import wget
 
 from verta import Client
 
 
 def load_imgs(n_imgs):
-    path = 'images/'
-    files = [file for file in sorted(os.listdir(path))][:n_imgs]
+    urls = [
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000001_0.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000001_1.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000001_2.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000001_3.jpg',
+        'http://s3.amazonaws.com/verta-starter/street-view-images/000001_4.jpg'
+    ]
+    urls = [url for url in urls][:n_imgs]
     data = []
 
-    for file in files:
-        with open(f"{path}{file}", 'rb') as img:
+    for url in urls:
+        file = url.split('/')[-1]
+        wget.download(url, file)
+        
+        with open(file, 'rb') as img:
             img_bytes = base64.b64encode(img.read())
             img_str = img_bytes.decode('utf-8')
             img_str = json.dumps(img_str)
@@ -34,7 +43,7 @@ def show_metrics(n_imgs, n_threads, start_time, end_time):
     print(f'Threads: {n_threads}.')
     print(f'Total time: {total_time}.')
 
-def save_results(results, n_imgs):
+def show_results(results):
     cols = list(results[0].keys())[:-1]
     cols.extend(list(results[0]['bboxes'].keys()))
     data = []
@@ -45,24 +54,21 @@ def save_results(results, n_imgs):
         data.append(values)
 
     df = pd.DataFrame(data, columns=cols)
-    df.to_csv(f"results/{n_imgs}.csv", index=False)
+    print(df)
 
 def main():
-    config = configparser.ConfigParser()
-    config.read('config.ini')
+    VERTA_HOST = 'app.verta.ai'
+    ENDPOINT_NAME = 'object-detection-base64'
 
-    VERTA_HOST = config['APP']['VERTA_HOST']
-    ENDPOINT_NAME = config['APP']['ENDPOINT_NAME']
-
-    os.environ['VERTA_EMAIL'] = config['APP']['VERTA_EMAIL']
-    os.environ['VERTA_DEV_KEY'] = config['APP']['VERTA_DEV_KEY']
+    os.environ['VERTA_EMAIL'] = ''
+    os.environ['VERTA_DEV_KEY'] = ''
 
     client = Client(VERTA_HOST, debug=True)
     endpoint = client.get_or_create_endpoint(ENDPOINT_NAME)
     model = endpoint.get_deployed_model()
 
     n_threads = int(mp.cpu_count())
-    n_imgs = 5  
+    n_imgs = 1
     imgs = load_imgs(n_imgs)
         
     start_time = time.time()
@@ -79,7 +85,7 @@ def main():
     end_time = time.time()
 
     show_metrics(n_imgs, n_threads, start_time, end_time)
-    save_results(results, n_imgs)
+    show_results(results)
 
 
 if __name__ == '__main__':

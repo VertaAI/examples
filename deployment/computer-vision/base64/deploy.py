@@ -1,5 +1,4 @@
 import base64
-import configparser
 import io
 import json
 import numpy as np
@@ -8,6 +7,7 @@ import tempfile
 import tensorflow as tf
 import tensorflow_hub as hub
 import time
+import wget
 
 from PIL import Image, ImageOps
 from verta import Client
@@ -24,6 +24,18 @@ class DetectObject(VertaModelBase):
     def __init__(self, artifacts=None):
         module_handle = 'https://tfhub.dev/google/openimages_v4/ssd/mobilenet_v2/1'
         self.detector = hub.load(module_handle).signatures['default']
+
+        url = 'http://s3.amazonaws.com/verta-starter/street-view-images/000001_0.jpg'
+        file = url.split('/')[-1]
+        wget.download(url, file)
+
+        with open(file, 'rb') as img:
+            img_bytes = base64.b64encode(img.read())
+            img_str = img_bytes.decode('utf-8')
+            img_str = json.dumps(img_str)
+            img_str = np.array(img_str).tolist()
+        
+        self.img_base64 = img_str
     
     def handle_img(self, img, width=640, height=480):
         _, path = tempfile.mkstemp(suffix='.jpg')
@@ -103,17 +115,35 @@ class DetectObject(VertaModelBase):
 
         return result
 
+    def describe(self):
+        """Return a description of the service."""        
+        return {
+            "method": "predict",
+            "args": f"{self.img_base64}",
+            "returns": "file, has_car, score, ymin, xmin, ymax, xmax",
+            "description": """
+                Identify whether a given object is present in the image, with its score and bounding boxes.
+            """,
+            "input_description": """
+                A list with base64 images.
+            """,
+            "output_description": """
+                A CSV file with information about all the processed images.
+                The columns presents the file names, if the object was found (boolean), its score and bounding boxes.
+            """
+        }
+    
+    def example(self):
+        """Return example input json-serializable data."""
+        return ["000001_0.jpg", self.img_base64]
 
-config = configparser.ConfigParser()
-config.read('config.ini')
+VERTA_HOST = 'app.verta.ai'
+PROJECT_NAME = 'Object Detection V2'
+MODEL_NAME = 'base64'
+ENDPOINT_NAME = 'object-detection-base64'
 
-VERTA_HOST = config['APP']['VERTA_HOST']
-PROJECT_NAME = config['APP']['PROJECT_NAME']
-MODEL_NAME = config['APP']['MODEL_NAME']
-ENDPOINT_NAME = config['APP']['ENDPOINT_NAME']
-
-os.environ['VERTA_EMAIL'] = config['APP']['VERTA_EMAIL']
-os.environ['VERTA_DEV_KEY'] = config['APP']['VERTA_DEV_KEY']
+os.environ['VERTA_EMAIL'] = ''
+os.environ['VERTA_DEV_KEY'] = ''
 
 client = Client(VERTA_HOST)
 project = client.set_project(PROJECT_NAME)
@@ -138,7 +168,7 @@ output = {
 
 model = registered_model.create_standard_model(
     model_cls = DetectObject,
-    environment = Python(requirements = ['tensorflow', 'tensorflow_hub', 'dill', 'Pillow']),
+    environment = Python(requirements = ['tensorflow', 'tensorflow_hub', 'dill', 'Pillow', 'wget']),
     model_api = ModelAPI([input], [output]),
     name = MODEL_NAME
 )
@@ -159,9 +189,11 @@ status = endpoint.update(
 )
 
 assert status['status'] == "active"
-file = '000001_0.jpg'
+url = 'http://s3.amazonaws.com/verta-starter/street-view-images/000001_0.jpg'
+file = url.split('/')[-1]
+wget.download(url, file)
 
-with open(f"images/{file}", 'rb') as img:
+with open(file, 'rb') as img:
     img_bytes = base64.b64encode(img.read())
     img_str = img_bytes.decode('utf-8')
     img_str = json.dumps(img_str)
