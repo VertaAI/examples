@@ -6,6 +6,7 @@ from verta import Client
 from verta.registry import VertaModelBase, verify_io
 from verta.registry.entities import RegisteredModel, RegisteredModelVersion
 from verta.environment import Python
+import platform
 
 client: Client = Client()
 project_name = "Stable Diffusion v2 Example"
@@ -35,13 +36,28 @@ class StableDiffusionV2Generator(VertaModelBase):
 
 model_id = "stabilityai/stable-diffusion-2-1"
 scheduler = EulerDiscreteScheduler.from_pretrained(model_id, subfolder="scheduler")
-device = "cuda"
-pipe = StableDiffusionPipeline.from_pretrained(
-    model_id,
-    scheduler=scheduler,
-    torch_dtype=torch.float16,
-    revision="fp16",
-)
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+revision = 'fp16'
+torch_dtype = torch.float16,
+
+processor = platform.processor()
+# initialize the image pipeline using custom setting for M1/M2 mac
+if processor == 'arm':
+    device = 'mps'
+    pipe = StableDiffusionPipeline.from_pretrained(
+        model_id,
+        scheduler=scheduler
+    )
+else:
+    pipe = StableDiffusionPipeline.from_pretrained(
+        model_id,
+        scheduler=scheduler,
+        torch_dtype=torch_dtype,
+        revision=revision,
+    )
+
+
 pipe = pipe.to(device)
 pipe.enable_xformers_memory_efficient_attention()
 
