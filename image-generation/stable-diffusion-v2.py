@@ -9,12 +9,14 @@ from verta.environment import Python
 import platform
 import os
 
+from verta.utils import ModelAPI
+
 client: Client = Client()
 project_name = "Stable Diffusion v2 Example"
 endpoint_name = "Stable_Diffusion_v2_Example"
 
 os.makedirs(
-    os.path.dirname('data/examples/'),
+    os.path.dirname('data/'),
     exist_ok=True,
 )
 
