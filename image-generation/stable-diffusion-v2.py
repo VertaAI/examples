@@ -1,52 +1,44 @@
+import platform
+import os
 import cloudpickle
 import torch
+import pandas as pd
 from diffusers import EulerDiscreteScheduler
 from diffusers import StableDiffusionPipeline
 from verta import Client
-from verta.registry import VertaModelBase, verify_io
+from verta.dataset import Path
+from verta.dataset.entities import Dataset
+from verta.dataset.entities import DatasetVersion
+from verta.deployment import DeployedModel
+from verta.registry import VertaModelBase, verify_io, task_type
 from verta.registry.entities import RegisteredModel, RegisteredModelVersion
 from verta.environment import Python
-import platform
-import os
+from verta.registry import data_type
+from verta.endpoint import Endpoint
 
 from verta.utils import ModelAPI
-
+os.environ['VERTA_EMAIL'] = 'cory@verta.ai'
+os.environ['VERTA_DEV_KEY'] = '154a34ad-2cd2-4d5d-b87c-2b809e075faa'
+os.environ['VERTA_HOST'] = 'cj.dev.verta.ai'
 client: Client = Client()
 project_name = "Stable Diffusion v2 Example"
 endpoint_name = "Stable_Diffusion_v2_Example"
+dataset_name = "Stable Diffusion v2 prebuilt pipeline"
+version = "v12"
+default_image_width = 512
+default_image_height = 512
+default_guidance_scale = 9
+default_num_inference_steps = 25
+default_num_images = 1
 
+# create the local data directory to store the prebuilt assets
 os.makedirs(
     os.path.dirname('data/'),
     exist_ok=True,
 )
-
-class StableDiffusionV2Generator(VertaModelBase):
-    def __init__(self, artifacts):
-        self.model = cloudpickle.load(open(artifacts["serialized_model"], "rb"))
-        print("configuring pipeline xformers")
-        self.model.enable_xformers_memory_efficient_attention()
-
-    @verify_io
-    def predict(self, batch_input):
-        prompt = "An artistic logo for an AI company named Verta"
-        num_images = 1
-        image_length = 768
-        guidance_scale = 9
-        num_inference_steps = 25
-        images = self.model(
-            prompt,
-            num_images_per_prompt=num_images,
-            guidance_scale=guidance_scale,
-            num_inference_steps=num_inference_steps,
-            height=image_length,
-            width=image_length,
-        ).images
-        return images[0]
-
-
 print("configuring scheduler")
 model_id = "stabilityai/stable-diffusion-2-1"
-scheduler = EulerDiscreteScheduler.from_pretrained(model_id, subfolder="scheduler")
+scheduler: EulerDiscreteScheduler = EulerDiscreteScheduler.from_pretrained(model_id, subfolder="scheduler")
 
 print("configuring pipeline")
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -56,12 +48,13 @@ torch_dtype = torch.float16
 processor = platform.processor()
 # initialize the image pipeline using custom setting for M1/M2 mac
 if processor == 'arm':
-    # device = 'mps'
+    # ARM-based Macs do not support the fp16 revision nor the float16 dtype when initializing the pipeline
     pipe = StableDiffusionPipeline.from_pretrained(
         model_id,
         scheduler=scheduler
     )
 else:
+    # x86 based OSes can use the fp16 revision and float16 dtype
     pipe = StableDiffusionPipeline.from_pretrained(
         model_id,
         scheduler=scheduler,
@@ -71,22 +64,66 @@ else:
 
 print("configuring pipeline device")
 
-pipe = pipe.to(device)
-# StableDiffusionPipeline.save_pretrained(pipe, save_directory='./data/pipe')
+pipe: StableDiffusionPipeline = pipe.to(device)
 
-print("pickling pipe")
-with open("./data/model.pkl", "wb") as f:
-    cloudpickle.dump(pipe, f)
+# Store the pretrained model to disk
+print("storing pretrained pipeline to disk")
+StableDiffusionPipeline.save_pretrained(pipe, save_directory='./data/pipe')
 
+# create a dataset out of the pretrained model
+print("creating a dataset for the pretrained pipeline")
+dataset: Dataset = client.get_or_create_dataset(name=dataset_name)
+content: Path = Path([f"./data/pipe"])
+dataset_version: DatasetVersion = dataset.create_version(content)
+# dataset_version: DatasetVersion = dataset.get_latest_version()
+
+# define a custom verta model that will use prebuilt pipeline in the dataset to run the prediction
+class StableDiffusionV2Generator(VertaModelBase):
+    def __init__(self, artifacts):
+        components = dataset_version.list_components()
+        for component in components:
+            print("data set component {}".format(component))
+        # TODO: how do I get the component data downloaded to the local filesystem?
+        self.pipeline = StableDiffusionPipeline.from_pretrained('./data/pipe')
+
+    @verify_io
+    def predict(self, prompt):
+        # todo convert the parameters to inputs
+        images = self.pipeline(
+            prompt,
+            num_images_per_prompt=default_num_images,
+            guidance_scale=default_guidance_scale,
+            num_inference_steps=default_num_inference_steps,
+            height=default_image_height,
+            width=default_image_width,
+        ).images
+        return [images[0], default_image_height, default_image_width, default_guidance_scale, default_num_inference_steps]
+
+# create the registered model
 print("configuring verta model")
-artifacts_dict = {"serialized_model": "./data/model.pkl"}
-registered_model: RegisteredModel = client.get_or_create_registered_model(name=project_name)
-model_version: RegisteredModelVersion = registered_model.create_standard_model(
-    name="v2",
-    model_cls=StableDiffusionV2Generator,
-    # model_api = ModelAPI(X_train, Y_train_with_confidence),
-    environment=Python(requirements=Python.read_pip_file("../requirements.txt")),
-    artifacts=artifacts_dict
+registered_model: RegisteredModel = client.get_or_create_registered_model(name=project_name, data_type=data_type.Image(), task_type=task_type.Other())
+
+# build the model api
+model_api: ModelAPI = ModelAPI(
+    pd.DataFrame.from_records(
+        [{"prompt": "the prompt"}]),
+    pd.DataFrame.from_records([{"image_data": "", "image_height": default_image_height, "image_width": default_image_width, "guidance_scale": default_guidance_scale, "num_inference_steps": default_num_inference_steps}]),
 )
-endpoint = client.get_or_create_endpoint(endpoint_name)
+
+# create the model version
+model_version: RegisteredModelVersion = registered_model.create_standard_model(
+    name=version,
+    model_cls=StableDiffusionV2Generator,
+    model_api = model_api,
+    environment=Python(requirements=Python.read_pip_file("requirements.txt"))
+)
+
+# log the dataset version that contains the prebuilt pipeline
+model_version.log_dataset_version(key=dataset_name, dataset_version=dataset_version)
+
+endpoint: Endpoint = client.get_or_create_endpoint(endpoint_name)
 endpoint.update(model_version, wait=True)
+
+# generate an image from a text prompt
+deployed_model: DeployedModel = endpoint.get_deployed_model()
+prediction = deployed_model.predict(["An artistic logo for an AI company named Verta"])
