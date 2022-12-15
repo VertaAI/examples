@@ -1,6 +1,6 @@
 import platform
 import os
-import cloudpickle
+from PIL.Image import Image
 import torch
 import pandas as pd
 from diffusers import EulerDiscreteScheduler
@@ -64,9 +64,6 @@ else:
         revision=revision,
     )
 
-print("configuring pipeline device")
-
-pipe: StableDiffusionPipeline = pipe.to(device)
 
 # Store the pretrained model to disk
 print("storing pretrained pipeline to disk")
@@ -83,13 +80,19 @@ dataset_version: DatasetVersion = dataset.create_version(content)
 class StableDiffusionV2Generator(VertaModelBase):
     def __init__(self, artifacts):
         local_dataset_version: DatasetVersion = client.get_dataset(name=dataset_name).get_latest_version()
-        print("initializing from dataset version {}, downloading content to path {}".format(local_dataset_version.version, path))
-        local_dataset_version.get_content().download(download_to_path=pipeline_path)
-        self.pipeline = StableDiffusionPipeline.from_pretrained(pipeline_path)
+        local_path = '.'
+        print("initializing from dataset version {}, downloading content to path {}".format(local_dataset_version.version, local_path))
+        local_dataset_version.get_content().download(download_to_path=local_path)
+        print("download complete, instantiating pipeline")
+        pipeline: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(pipeline_path)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print("configuring pipeline device {}".format(device))
+        self.pipeline: StableDiffusionPipeline = pipeline.to(device)
+        print("pipeline ready for predictions")
 
     @verify_io
     def predict(self, prompt):
-        # todo convert the parameters to inputs
+        print("executing pipeline with prompt '{}'".format(prompt))
         images = self.pipeline(
             prompt,
             num_images_per_prompt=default_num_images,
@@ -98,7 +101,24 @@ class StableDiffusionV2Generator(VertaModelBase):
             height=default_image_height,
             width=default_image_width,
         ).images
-        return [images[0], default_image_height, default_image_width, default_guidance_scale, default_num_inference_steps]
+        print("prediction complete for prompt '{}'".format(prompt))
+        prompt = prompts[0]
+        guidance_scale = default_guidance_scale
+        num_inference_steps = default_num_inference_steps
+        print("executing pipeline with prompt '{}'".format(prompt))
+        images = self.pipeline(
+            prompt,
+            num_images_per_prompt=default_num_images,
+            guidance_scale=guidance_scale,
+            num_inference_steps=num_inference_steps,
+            height=default_image_height,
+            width=default_image_width,
+        ).images
+        print("prediction complete for prompt '{}'".format(prompt))
+        image: Image = images[0]
+        print("resulting image is {}".format(image.info))
+        return [image, image.height, image.width, guidance_scale, num_inference_steps]
+
 
 # create the registered model
 print("configuring verta model")
