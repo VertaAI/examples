@@ -30,10 +30,12 @@ default_image_height = 512
 default_guidance_scale = 9
 default_num_inference_steps = 25
 default_num_images = 1
+data_path = 'data/'
+pipeline_path = 'data/pipeline'
 
 # create the local data directory to store the prebuilt assets
 os.makedirs(
-    os.path.dirname('data/'),
+    os.path.dirname(data_path),
     exist_ok=True,
 )
 print("configuring scheduler")
@@ -68,23 +70,22 @@ pipe: StableDiffusionPipeline = pipe.to(device)
 
 # Store the pretrained model to disk
 print("storing pretrained pipeline to disk")
-StableDiffusionPipeline.save_pretrained(pipe, save_directory='./data/pipe')
+StableDiffusionPipeline.save_pretrained(pipe, save_directory=pipeline_path)
 
 # create a dataset out of the pretrained model
 print("creating a dataset for the pretrained pipeline")
 dataset: Dataset = client.get_or_create_dataset(name=dataset_name)
-content: Path = Path([f"./data/pipe"])
+content: Path = Path([f"./data/pipe"], enable_mdb_versioning=True)
 dataset_version: DatasetVersion = dataset.create_version(content)
 # dataset_version: DatasetVersion = dataset.get_latest_version()
 
 # define a custom verta model that will use prebuilt pipeline in the dataset to run the prediction
 class StableDiffusionV2Generator(VertaModelBase):
     def __init__(self, artifacts):
-        components = dataset_version.list_components()
-        for component in components:
-            print("data set component {}".format(component))
-        # TODO: how do I get the component data downloaded to the local filesystem?
-        self.pipeline = StableDiffusionPipeline.from_pretrained('./data/pipe')
+        local_dataset_version: DatasetVersion = client.get_dataset(name=dataset_name).get_latest_version()
+        print("initializing from dataset version {}, downloading content to path {}".format(local_dataset_version.version, path))
+        local_dataset_version.get_content().download(download_to_path=pipeline_path)
+        self.pipeline = StableDiffusionPipeline.from_pretrained(pipeline_path)
 
     @verify_io
     def predict(self, prompt):
