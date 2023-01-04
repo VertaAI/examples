@@ -7,7 +7,7 @@ jupyter:
       format_version: '1.3'
       jupytext_version: 1.14.4
   kernelspec:
-    display_name: Python 3
+    display_name: Python 3 (ipykernel)
     language: python
     name: python3
 ---
@@ -34,6 +34,7 @@ import matplotlib.pyplot as plt
 
 ```python
 # restart your notebook if prompted on Colab
+# Here's a change to the notebook, I did this in jupyter.
 try:
     import verta
 except ImportError:
