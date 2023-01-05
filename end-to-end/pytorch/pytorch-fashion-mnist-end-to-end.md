@@ -14,7 +14,7 @@ jupyter:
 
 # Deploying Tensorflow models on Verta
 
-Within Verta, a "Model" can be any arbitrary function: a traditional ML model (e.g., sklearn, PyTorch, TF, etc); a function (e.g., squaring a number, making a DB function etc.); or a mixture of the above (e.g., pre-processing code, a DB call, and then a model application.) See more [here](https://docs.verta.ai/verta/registry/concepts).
+Within Verta, a "Model" can be any arbitrary function: a traditional ML model (e.g., sklearn, PyTorch, TF, etc); a function (e.g., squaring a number, making a DB function etc.); or a mixture of the above blah blah (e.g., pre-processing code, a DB call, and then a model application.) See more [here](https://docs.verta.ai/verta/registry/concepts).
 
 This notebook provides an example of how to deploy a PyTorch model on Verta as a Verta Standard Model either via  convenience functions (for Keras) or by extending [VertaModelBase](https://verta.readthedocs.io/en/master/_autogen/verta.registry.VertaModelBase.html?highlight=VertaModelBase#verta.registry.VertaModelBase).
 
