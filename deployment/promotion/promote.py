@@ -260,7 +260,7 @@ def get_promotion_data(_config):
     build = None
     latest_date = None
     for b in all_builds['builds']:
-        if 'self_contained' in b['creator_request']:
+        if 'self_contained' in b['creator_request'] and b['creator_request']['self_contained']:
             build_date = datetime.datetime.strptime(b['date_created'], time_format)
             if not latest_date or build_date > latest_date:
                 latest_date = build_date
