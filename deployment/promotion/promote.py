@@ -9,7 +9,7 @@ as the model version to promote.
 self-contained builds of the model version are found.
 - If you need to create a self-contained build of a model version, use the create_scb.py script.
 
-Configuration is done via environment variables. All are mandatory except VERTA_DEST_REGISTERED_MODEL_ID:
+Configuration is done via environment variables. All are mandatory except VERTA_DEST_REGISTERED_MODEL:
 
 - VERTA_SOURCE_MODEL_VERSION_ID: The ID of the model version to promote
 - VERTA_SOURCE_HOST: The source Verta instance to promote from
@@ -19,8 +19,8 @@ Configuration is done via environment variables. All are mandatory except VERTA_
 - VERTA_DEST_HOST: The destination Verta instance to promote to
 - VERTA_DEST_EMAIL: The email address for authentication to the destination Verta instance
 - VERTA_DEST_DEV_KEY: The dev key associated to the email address on the destination Verta instance
-- VERTA_DEST_WORKSPACE: The workspace associated with the build on the destination Verta instance
-- VERTA_DEST_REGISTERED_MODEL_ID: [optional] The ID of the registered model to promote to. If missing, we'll create a new registered model
+- VERTA_DEST_WORKSPACE: The name of the workspace associated with the build on the destination Verta instance
+- VERTA_DEST_REGISTERED_MODEL: [optional] The name of the registered model to promote to. If missing, we'll create a new registered model
 
 Optional environment variables to configure curl usage:
 VERTA_CURL_OPTS: Options to pass to curl. Defaults to '-O'
@@ -38,7 +38,7 @@ import datetime
 env_vars = ['VERTA_SOURCE_MODEL_VERSION_ID', 'VERTA_SOURCE_HOST', 'VERTA_SOURCE_EMAIL', 'VERTA_SOURCE_DEV_KEY',
             'VERTA_SOURCE_WORKSPACE', 'VERTA_DEST_HOST', 'VERTA_DEST_EMAIL', 'VERTA_DEST_DEV_KEY',
             'VERTA_DEST_WORKSPACE']
-opt_env_vars = ['VERTA_DEST_REGISTERED_MODEL_ID']
+opt_env_vars = ['VERTA_DEST_REGISTERED_MODEL']
 params = {}
 
 
@@ -71,7 +71,7 @@ config = {
         'email': params['VERTA_DEST_EMAIL'],
         'devkey': params['VERTA_DEST_DEV_KEY'],
         'workspace': params['VERTA_DEST_WORKSPACE'],
-        'registered_model_id': params['VERTA_DEST_REGISTERED_MODEL_ID']  # Will be empty if no destination RM was provided
+        'registered_model_name': params['VERTA_DEST_REGISTERED_MODEL']  # Will be empty if no destination RM was provided
     }
 }
 
@@ -153,6 +153,19 @@ def get_model_version(auth, model_version_id):
 
 def get_registered_model(auth, registered_model_id):
     return get(auth, '/api/v1/registry/registered_models/{}'.format(registered_model_id))['registered_model']
+
+
+def get_registered_models_by_name(auth, registered_model_name):
+    path = '/api/v1/registry/workspaces/{}/registered_models/find'.format(auth['workspace'])
+    predicates = {
+        'predicates': [{
+            "key": "name",
+            "operator": "EQ",
+            "value": registered_model_name,
+            "value_type": "STRING"
+        }]
+    }
+    return post(auth, path, predicates)['registered_models']
 
 
 def signed_artifact_url(auth, model_version_id, artifact):
@@ -352,10 +365,16 @@ def create_promotion(_config, promotion):
 
     print("Starting promotion")
     build_location = upload_build(promotion['build'])
-    if not dest['registered_model_id']:
+    if not dest['registered_model_name']:
         model = create_model(dest_auth, promotion['model'], promotion['artifacts'])
     else:
-        model = get_registered_model(dest_auth, dest['registered_model_id'])
+        models = get_registered_models_by_name(dest_auth, dest['registered_model_name'])
+        if len(models) > 1:
+            print("WARNING: Multiple registered models with name '%s' found, using first one with id '%s'" % (dest['registered_model_name'], models[0]["id"]))
+        elif len(models) == 0:
+            print("ERROR: Registered model with name '%s' not found" % dest['registered_model_name'])
+            return
+        model = models[0]
         print("Using existing registered model '%s'" % model['name'])
     model_version = create_model_version(dest_auth, promotion['model_version'], model)
 
