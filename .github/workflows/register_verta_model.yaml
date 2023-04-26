@@ -1,9 +1,9 @@
 name: Register Verta Model Version
 run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
-on:
-  push:
-    branches:
-      - main
+on: [push]
+#   push:
+#     branches:
+#       - main
 env:
   VERTA_HOST: dev.verta.ai
   VERTA_EMAIL: github_workflow_test@verta.ai
