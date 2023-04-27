@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
 
-import logging
 import os
 
 import cloudpickle
 from verta import Client
 from verta.environment import Python
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 REGISTERED_MODEL_NAME = os.environ["REGISTERED_MODEL_NAME"]
 MODEL_FILENAMES = os.environ["MODEL_FILENAMES"]
@@ -26,7 +23,7 @@ if __name__ == "__main__":
             os.path.join(os.path.dirname(__file__), "requirements.txt"),
         )
 
-        logger.info('Registering model "%s"', model_filename)
+        print(f'Registering model "{model_filename}"')
         model_ver = reg_model.create_standard_model(
             model_cls,
             environment=Python(requirements),
