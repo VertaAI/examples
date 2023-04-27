@@ -23,8 +23,7 @@ if __name__ == "__main__":
 
         logger.info('Registering model "%s"', model_filename)
         model_ver = reg_model.create_standard_model(
-            name=os.path.splitext(model_filename)[0],
-            model_cls=model_cls,
+            model_cls,
             environment=Python.read_pip_file(
                 os.path.join(os.path.dirname(__file__), "requirements.txt"),
             ),
