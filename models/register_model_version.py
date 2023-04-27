@@ -21,10 +21,12 @@ if __name__ == "__main__":
         with open(model_filename, "rb") as f:
             model_cls = cloudpickle.load(f)
 
+        requirements = Python.read_pip_file(
+            os.path.join(os.path.dirname(__file__), "requirements.txt"),
+        )
+
         logger.info('Registering model "%s"', model_filename)
         model_ver = reg_model.create_standard_model(
             model_cls,
-            environment=Python.read_pip_file(
-                os.path.join(os.path.dirname(__file__), "requirements.txt"),
-            ),
+            environment=Python(requirements),
         )
