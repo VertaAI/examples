@@ -12,8 +12,10 @@ MODEL_FILEPATH = os.environ["MODEL_FILEPATH"]
 if __name__ == "__main__":
     client = Client()
     reg_model = client.get_or_create_registered_model(REGISTERED_MODEL_NAME)
-    
+
     model_ver = reg_model.create_standard_model(
         pickle.load(MODEL_FILEPATH),
-        environment=Python.read_pip_file("requirements.txt"),
+        environment=Python.read_pip_file(
+            os.path.join(os.path.dirname(__file__), "requirements.txt"),
+        ),
     )
