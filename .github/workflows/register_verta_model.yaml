@@ -37,5 +37,5 @@ jobs:
           VERTA_DEV_KEY: ${{ secrets.TEST_ACCOUNT_DEV_KEY }}
           REGISTERED_MODEL_NAME: From GitHub Action
         run: |
-          MODEL_FILENAMES=$(git diff --diff-filter=A --relative --name-only ${{ github.event.before }} ${{ github.event.after }} | grep '\.pkl$')
+          export MODEL_FILENAMES=$(git diff --diff-filter=A --relative --name-only ${{ github.event.before }} ${{ github.event.after }} | grep '\.pkl$')
           python register_model_version.py
