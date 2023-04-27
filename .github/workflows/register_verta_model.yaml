@@ -3,7 +3,7 @@ name: Register Verta Model Version
 on:
   push:
     paths:
-      - ./models/*.pkl
+      - models/*.pkl
     branches:
       - workflow1
 
