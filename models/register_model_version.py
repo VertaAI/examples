@@ -18,10 +18,13 @@ if __name__ == "__main__":
     reg_model = client.get_or_create_registered_model(REGISTERED_MODEL_NAME)
 
     for model_filename in MODEL_FILENAMES.splitlines():
+        with open(model_filename, "rb") as f:
+            model_cls = cloudpickle.load(f)
+
         logger.info('Registering model "%s"', model_filename)
         model_ver = reg_model.create_standard_model(
             name=os.path.splitext(model_filename)[0],
-            model_cls=cloudpickle.load(model_filename),
+            model_cls=model_cls,
             environment=Python.read_pip_file(
                 os.path.join(os.path.dirname(__file__), "requirements.txt"),
             ),
