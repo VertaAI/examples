@@ -8,6 +8,7 @@ from verta import Client
 from verta.environment import Python
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 REGISTERED_MODEL_NAME = os.environ["REGISTERED_MODEL_NAME"]
 MODEL_FILENAMES = os.environ["MODEL_FILENAMES"]
