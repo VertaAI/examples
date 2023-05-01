@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 
+"""This script simply saves a pickled model class to disk.
+
+This is for demonstration purposes—meant to simulate a data scientist checking
+a model into the repo.
+
+"""
+
 from datetime import datetime
 import os
 

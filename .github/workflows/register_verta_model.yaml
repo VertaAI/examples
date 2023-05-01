@@ -36,6 +36,7 @@ jobs:
           VERTA_EMAIL: github_workflow_test@verta.ai
           VERTA_DEV_KEY: ${{ secrets.TEST_ACCOUNT_DEV_KEY }}
           REGISTERED_MODEL_NAME: From GitHub Action
+          REQUIREMENTS_FILENAME: requirements.txt
         run: |
           export MODEL_FILENAMES=$(git diff --diff-filter=AR --relative --name-only ${{ github.event.before }} ${{ github.event.after }} | grep '\.pkl$')
           python register_model_version.py
