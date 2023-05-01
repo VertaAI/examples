@@ -28,6 +28,7 @@ if __name__ == "__main__":
 
         print(f'Registering model "{model_filepath}"')
         model_ver = reg_model.create_standard_model(
-            model_cls,
+            name=os.path.basename(model_filepath).replace(":", "_").replace(".", "_"),
+            model_cls=model_cls,
             environment=Python(requirements),
         )
