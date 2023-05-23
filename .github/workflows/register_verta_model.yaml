@@ -1,0 +1,42 @@
+name: Register Verta Model Version
+
+on:
+  push:
+    paths:
+      - github-actions/register-verta-model/models/*.pkl
+    branches:
+      - workflow1
+
+jobs:
+  Register-Verta-Model-Version:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: github-actions/register-verta-model
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # fetch full history, in case push is multiple commits
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Register model version
+        env:
+          VERTA_HOST: dev.verta.ai
+          VERTA_EMAIL: github_workflow_test@verta.ai
+          VERTA_DEV_KEY: ${{ secrets.TEST_ACCOUNT_DEV_KEY }}
+          REGISTERED_MODEL_NAME: From GitHub Action
+          REQUIREMENTS_FILEPATH: requirements.txt
+        run: |
+          export MODEL_FILEPATHS=$(git diff --diff-filter=AR --relative --name-only ${{ github.event.before }} ${{ github.event.after }} | grep '\.pkl$')
+          python register_model_version.py
