@@ -2,12 +2,15 @@
 """
 This is a Python script that will copy/promote a Verta Build from one environment
 to another.
+
 - The script will use the model version passed in the VERTA_SOURCE_MODEL_VERSION_ID environment variable
 as the model version to promote.
 - The latest self-contained build of the model version will be promoted. The promotion process will terminate if no
 self-contained builds of the model version are found.
 - If you need to create a self-contained build of a model version, use the create_scb.py script.
+
 Configuration is done via environment variables. All are mandatory except VERTA_DEST_REGISTERED_MODEL_ID:
+
 - VERTA_SOURCE_MODEL_VERSION_ID: The ID of the model version to promote
 - VERTA_SOURCE_HOST: The source Verta instance to promote from
 - VERTA_SOURCE_EMAIL: The email address for authentication to the source Verta instance
@@ -18,8 +21,10 @@ Configuration is done via environment variables. All are mandatory except VERTA_
 - VERTA_DEST_DEV_KEY: The dev key associated to the email address on the destination Verta instance
 - VERTA_DEST_WORKSPACE: The workspace associated with the build on the destination Verta instance
 - VERTA_DEST_REGISTERED_MODEL_ID: [optional] The ID of the registered model to promote to. If missing, we'll create a new registered model
+
 Optional environment variables to configure curl usage:
 VERTA_CURL_OPTS: Options to pass to curl. Defaults to '-O'
+
 With these values set, run the script. The script will not attempt to delete any data and will fail if the registered
 model (if an existing one has not been provided) or version already exists in the destination.
 """
@@ -261,6 +266,7 @@ def upload_artifact(auth, model_version_id, artifact):
     key = artifact['key']
     print("Uploading artifact '%s'" % key)
     print(artifact)
+    
     artifact_request = {
         'method': 'PUT',
         'model_version_id': model_version_id,
