@@ -229,17 +229,17 @@ def commit_artifact_part(auth, model_version_id, artifact_key, etag):
     return post(auth, path, commit)
 
 
-def download_artifact(auth, model_version_id, artifact):
+def download_artifact_info(auth, model_version_id, artifact):
     key = artifact['key']
     url = signed_artifact_url(auth, model_version_id, artifact)
-    print("Downloading artifact '%s'" % key)
+    print("Downloading artifact info '%s'" % key)
     curl_cmd = "curl --cacert %s -o %s %s '%s'" % (
     os.environ['REQUESTS_CA_BUNDLE'], key, params['VERTA_CURL_OPTS'], url)
     os.system(curl_cmd)
 
 
-def download_artifacts(auth, model_version_id, artifacts, model_artifact):
-    print("Downloading %d artifacts" % len(artifacts))
+def download_artifacts_info(auth, model_version_id, artifacts, model_artifact):
+    print("Downloading %d artifacts info" % len(artifacts))
 
     downloaded_artifacts = []
     for artifact in artifacts:
@@ -248,7 +248,7 @@ def download_artifacts(auth, model_version_id, artifacts, model_artifact):
             'model_version_id': model_version_id
         }
         copy_fields(['artifact_type', 'key'], artifact, artifact_request)
-        download_artifact(auth, model_version_id, artifact_request)
+        download_artifact_info(auth, model_version_id, artifact_request)
         downloaded_artifacts.append(
             {'key': artifact['key'], 'artifact_type': artifact['artifact_type']})
 
@@ -257,16 +257,16 @@ def download_artifacts(auth, model_version_id, artifacts, model_artifact):
         'model_version_id': model_version_id
     }
     copy_fields(['artifact_type', 'key'], model_artifact, model_artifact_request)
-    download_artifact(auth, model_version_id, model_artifact_request)
+    download_artifact_info(auth, model_version_id, model_artifact_request)
 
     return downloaded_artifacts
 
 
-def upload_artifact(auth, model_version_id, artifact):
+def upload_artifact_info(auth, model_version_id, artifact):
     key = artifact['key']
-    print("Uploading artifact '%s'" % key)
+    print("Uploading artifact info '%s'" % key)
     print(artifact)
-    
+
     artifact_request = {
         'method': 'PUT',
         'model_version_id': model_version_id,
@@ -300,12 +300,12 @@ def upload_artifact(auth, model_version_id, artifact):
     return put_url
 
 
-def upload_artifacts(auth, model_version_id, artifacts):
-    print("Uploading %d artifacts" % len(artifacts))
+def upload_artifacts_info(auth, model_version_id, artifacts):
+    print("Uploading %d artifacts info" % len(artifacts))
     uploaded_artifacts = {}
 
     for artifact in artifacts:
-        uploaded_artifacts[artifact["key"]] = upload_artifact(auth, model_version_id, artifact)
+        uploaded_artifacts[artifact["key"]] = upload_artifact_info(auth, model_version_id, artifact)
     return uploaded_artifacts
 
 
@@ -339,8 +339,8 @@ def get_promotion_data(_config):
         raise SystemExit(1)
 
     model = get_registered_model(source_auth, model_version['registered_model_id'])
-    artifacts = download_artifacts(source_auth, model_version_id, model_version['artifacts'],
-                                   model_version['model'])
+    artifacts = download_artifacts_info(source_auth, model_version_id, model_version['artifacts'],
+                                        model_version['model'])
 
     promotion = {
         'build': build,
@@ -433,7 +433,7 @@ def create_promotion(_config, promotion):
 
     artifacts_and_model = promotion['artifacts']
     artifacts_and_model.append(model_version['model'])
-    artifact_paths = upload_artifacts(dest_auth, model_version['id'], artifacts_and_model)
+    artifact_paths = upload_artifacts_info(dest_auth, model_version['id'], artifacts_and_model)
 
     # Standard RMVs will have artifact path 'model' while ER->RMVs will have artifact path 'model.pkl'
     model_artifact = model_version['model']
