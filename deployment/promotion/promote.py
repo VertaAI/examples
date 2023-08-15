@@ -35,6 +35,8 @@ import requests
 import os
 import datetime
 
+from upload_to_s3 import upload_to_s3, get_base_path_to_artifact, update_artifact_path
+
 env_vars = ['VERTA_SOURCE_MODEL_VERSION_ID', 'VERTA_SOURCE_HOST', 'VERTA_SOURCE_EMAIL',
             'VERTA_SOURCE_DEV_KEY',
             'VERTA_SOURCE_WORKSPACE_0', 'VERTA_DEST_HOST', 'VERTA_DEST_EMAIL',
@@ -66,6 +68,7 @@ if not os.environ.get('VERTA_DEST_WORKSPACE'):
                     'grpc-metadata-developer_key': os.environ.get('VERTA_SOURCE_DEV_KEY')}
     workspaces_source = requests.get(host, headers=headers_dict, proxies=proxies)
 
+    source_workspace = None
     for item in workspaces_source.json()['workspace']:
         if 'id' in item.keys() and item['id'] == source_workspace_id:
             if 'org_name' in item.keys():
@@ -81,6 +84,8 @@ if not os.environ.get('VERTA_DEST_WORKSPACE'):
             os.environ['VERTA_DEST_WORKSPACE'] = item['org_name']
         elif 'username' in item.keys() and item['username'] == source_workspace:
             os.environ['VERTA_DEST_WORKSPACE'] = item['username']
+else:
+    source_workspace = os.environ.get('VERTA_DEST_WORKSPACE')
 
 for param_name in env_vars:
     param = os.environ.get(param_name)
@@ -101,7 +106,7 @@ params['VERTA_CURL_OPTS'] += f' -H @curl_headers'
 
 config = {
     'source': {
-        'model_version_id': atoi(params['VERTA_SOURCE_MODEL_VERSION_ID'][2:-2]),
+        'model_version_id': atoi(params['VERTA_SOURCE_MODEL_VERSION_ID']),  # [2:-2]),
         'host': params['VERTA_SOURCE_HOST'],
         'email': params['VERTA_SOURCE_EMAIL'],
         'devkey': params['VERTA_SOURCE_DEV_KEY'],
@@ -233,8 +238,11 @@ def download_artifact(auth, model_version_id, artifact):
     key = artifact['key']
     url = signed_artifact_url(auth, model_version_id, artifact)
     print("Downloading artifact '%s'" % key)
-    curl_cmd = "curl --cacert %s -o %s %s '%s'" % (
-    os.environ['REQUESTS_CA_BUNDLE'], key, params['VERTA_CURL_OPTS'], url)
+    if 'REQUESTS_CA_BUNDLE' not in os.environ:
+        curl_cmd = "curl -o %s %s '%s'" % (key, params['VERTA_CURL_OPTS'], url)
+    else:
+        curl_cmd = "curl --cacert %s -o %s %s '%s'" % (
+            os.environ['REQUESTS_CA_BUNDLE'], key, params['VERTA_CURL_OPTS'], url)
     os.system(curl_cmd)
 
 
@@ -250,7 +258,7 @@ def download_artifacts(auth, model_version_id, artifacts, model_artifact):
         copy_fields(['artifact_type', 'key'], artifact, artifact_request)
         download_artifact(auth, model_version_id, artifact_request)
         downloaded_artifacts.append(
-            {'key': artifact['key'], 'artifact_type': artifact['artifact_type']})
+            {'key': artifact['key'], 'artifact_type': artifact['artifact_type'], 'path': artifact['path'], 'filename_extension': artifact['filename_extension']})
 
     model_artifact_request = {
         'method': 'GET',
@@ -264,6 +272,10 @@ def download_artifacts(auth, model_version_id, artifacts, model_artifact):
 
 def upload_artifact(auth, model_version_id, artifact):
     key = artifact['key']
+    print("Uploading artifact '%s' to s3" % key)
+
+    upload_to_s3(artifact, "")
+
     print("Uploading artifact '%s'" % key)
     print(artifact)
     
@@ -284,8 +296,8 @@ def upload_artifact(auth, model_version_id, artifact):
 
     if not put_response.ok:
         raise Exception("Failed to put artifact (%d %s). Key: %s\tURL: %s\tText: %s" % (
-        put_response.status_code,
-        put_response.reason, key, put_url, put_response.text))
+            put_response.status_code,
+            put_response.reason, key, put_url, put_response.text))
 
     check_url = signed_artifact_url(auth, model_version_id,
                                     {'method': 'GET', 'model_version_id': model_version_id,
@@ -303,6 +315,12 @@ def upload_artifact(auth, model_version_id, artifact):
 def upload_artifacts(auth, model_version_id, artifacts):
     print("Uploading %d artifacts" % len(artifacts))
     uploaded_artifacts = {}
+
+    # Update paths
+    base_path = get_base_path_to_artifact(artifacts)
+    for artifact in artifacts:
+        update_artifact_path(artifact, base_path)
+        print(f"Updated artifact path to {artifact['path']}")
 
     for artifact in artifacts:
         uploaded_artifacts[artifact["key"]] = upload_artifact(auth, model_version_id, artifact)
