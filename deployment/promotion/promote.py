@@ -3,6 +3,8 @@
 This is a Python script that will copy/promote a Verta Build from one environment
 to another.
 
+This script requires client version at least 0.24.1.
+
 - The script will use the model version passed in the VERTA_SOURCE_MODEL_VERSION_ID environment variable
 as the model version to promote.
 - The latest self-contained build of the model version will be promoted. The promotion process will terminate if no
@@ -16,13 +18,13 @@ Configuration is done via environment variables. All are mandatory except VERTA_
 - VERTA_SOURCE_EMAIL: The email address for authentication to the source Verta instance
 - VERTA_SOURCE_DEV_KEY: The dev key associated to the email address on the source Verta instance
 - VERTA_SOURCE_WORKSPACE: The workspace associated with the build on the source Verta instance
-- VERTA_SOURCE_ORGANIZATION: The organization associated with the build on the source Verta instance
+- VERTA_SOURCE_ORGANIZATION: [optional] The organization associated with the build on the source Verta instance
 - VERTA_SOURCE_S3_BUCKET: The S3 bucket where the artifacts are stored
 - VERTA_DEST_HOST: The destination Verta instance to promote to
 - VERTA_DEST_EMAIL: The email address for authentication to the destination Verta instance
 - VERTA_DEST_DEV_KEY: The dev key associated to the email address on the destination Verta instance
 - VERTA_DEST_WORKSPACE: The workspace associated with the build on the destination Verta instance
-- VERTA_DEST_ORGANIZATION: The organization associated with the build on the destination Verta instance
+- VERTA_DEST_ORGANIZATION: [optional] The organization associated with the build on the destination Verta instance
 - VERTA_DEST_S3_BUCKET: The S3 bucket where the artifacts will be stored
 - VERTA_DEST_REGISTERED_MODEL_ID: [optional] The ID of the registered model to promote to. If missing, we'll create a new registered model
 
@@ -90,6 +92,10 @@ dest_model_id = os.environ.get('VERTA_DEST_REGISTERED_MODEL_ID')
 print("Fetching model version %s" % source_model_version_id)
 source_model_version = source_client.get_registered_model_version(source_model_version_id)
 source_model = source_client.get_registered_model(id=source_model_version.registered_model_id)
+source_builds = source_model_version.list_builds()
+if len(source_builds) == 0:
+    raise ValueError("No builds found for model version %s" % source_model_version_id)
+source_build = source_builds[0]
 
 if dest_model_id:
     print("Fetching destination registered model %s" % dest_model_id)
@@ -99,13 +105,10 @@ else:
     dest_model = dest_client.get_or_create_registered_model(name=source_model.name)
 
 # Copy information from the source model to the destination model
-# TODO: add readme, description to the client
 print("Copying info from source model to destination model")
 dest_model.add_labels([v for v in source_model.get_labels()])
 
 # Create the basic model version
-# TODO: add readme, description to the client
-# TODO: check return types
 print("Copying info from source model version to destination model version")
 dest_model_version = dest_model.create_version(
     name=source_model_version.name,
@@ -124,11 +127,6 @@ env = source_model_version.get_environment()
 dest_model_version.log_environment(env, overwrite=True)
 
 print("Copying build information")
-source_builds = source_model_version.list_builds()
-if len(source_builds) == 0:
-    raise ValueError("No builds found for model version %s" % source_model_version_id)
-source_build = source_builds[0]
-
 dest_build = dest_model_version.create_external_build(
     location=source_build.location,
     requires_root=source_build.requires_root,
@@ -136,7 +134,6 @@ dest_build = dest_model_version.create_external_build(
     self_contained=source_build.self_contained,
 )
 dest_build.message = source_build.message
-print(dest_build)
 
 if not source_build.self_contained:
     print("Got non self contained build. Copying artifacts in S3")
